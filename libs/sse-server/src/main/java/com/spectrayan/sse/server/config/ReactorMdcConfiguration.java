@@ -24,7 +24,7 @@ import java.util.Set;
  *
  * Keys bridged:
  * - topic (set by controller when subscribing)
- * - any keys configured via {@link SseServerProperties#getLogHeaders()} values (MDC key names)
+ * - any keys configured via {@link SseServerProperties#getHeaders()} values (MDC key names)
  *
  * Note: Correlation ID handling has been removed from the bridge.
  */
@@ -36,24 +36,14 @@ public class ReactorMdcConfiguration {
     private final boolean enabled;
     private final String contextMarkerKey;
 
-    public ReactorMdcConfiguration(SseServerProperties properties) {
+    public ReactorMdcConfiguration(SseServerProperties properties, SseHeaderHandler headerHandler) {
         this.enabled = properties == null || properties.isMdcBridgeEnabled();
         this.contextMarkerKey = (properties != null ? properties.getMdcContextKey() : "sseMdc");
         // Include topic
-        mdcKeys.add("topic");
-        // Add configured MDC keys from properties (values of the header->HeaderRule map)
-        if (properties != null) {
-            Map<String, SseServerProperties.HeaderRule> map = properties.getLogHeaders();
-            if (map != null && !map.isEmpty()) {
-                for (SseServerProperties.HeaderRule rule : map.values()) {
-                    if (rule != null) {
-                        String mdcKey = rule.getMdcKey();
-                        if (mdcKey != null && !mdcKey.isBlank()) {
-                            mdcKeys.add(mdcKey);
-                        }
-                    }
-                }
-            }
+        //mdcKeys.add("topic");
+        // Add configured MDC keys from handler
+        if (headerHandler != null) {
+            mdcKeys.addAll(headerHandler.getMdcKeys());
         }
     }
 
