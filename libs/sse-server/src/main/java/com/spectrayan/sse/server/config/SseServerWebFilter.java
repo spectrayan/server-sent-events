@@ -14,17 +14,18 @@ import java.util.*;
  * via Reactor Context for downstream reactive chains. Correlation ID handling has been removed;
  * only explicitly configured headers are managed here.
  * <p>
- * Configuration provided in {@link SseServerProperties#getLogHeaders()} maps request header names
- * to header handling rules that include the target MDC key.
+ * Configuration is provided via unified {@link SseServerProperties#getHeaders()} list.
  */
 @Component
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class SseServerWebFilter implements WebFilter {
 
     private final SseServerProperties properties;
+    private final SseHeaderHandler headerHandler;
 
-    public SseServerWebFilter(SseServerProperties properties) {
+    public SseServerWebFilter(SseServerProperties properties, SseHeaderHandler headerHandler) {
         this.properties = properties;
+        this.headerHandler = headerHandler;
     }
 
     @Override
@@ -55,20 +56,6 @@ public class SseServerWebFilter implements WebFilter {
     }
 
     private Map<String, String> addToMDC(ServerWebExchange exchange) {
-        Map<String, SseServerProperties.HeaderRule> configured = properties.getLogHeaders();
-        Map<String, String> addedToMdc = new LinkedHashMap<>();
-        if (configured != null && !configured.isEmpty()) {
-            configured.forEach((headerName, rule) -> {
-                if (rule == null) return;
-                String mdcKey = rule.getMdcKey();
-                if (mdcKey == null || mdcKey.isBlank()) return;
-                String value = exchange.getRequest().getHeaders().getFirst(headerName);
-                if (value != null && !value.isBlank()) {
-                    MDC.put(mdcKey, value);
-                    addedToMdc.put(mdcKey, value);
-                }
-            });
-        }
-        return addedToMdc;
+        return headerHandler.seedMdcFromRequest(exchange);
     }
 }
