@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { SseClientService } from './sse-client.service';
+import { SseClient } from './sse-client';
 import { SSE_CLIENT_CONFIG, SseClientConfig } from './config';
 
 // Simple EventSource mock compatible with EventSourceLike
@@ -57,8 +57,8 @@ class MockEventSource {
   }
 }
 
-describe('SseClientService', () => {
-  let service: SseClientService;
+describe('SseClient', () => {
+  let service: SseClient;
   const originalEventSource = (global as any).EventSource;
 
   beforeEach(() => {
@@ -68,7 +68,7 @@ describe('SseClientService', () => {
 
     TestBed.configureTestingModule({
       providers: [
-        SseClientService,
+        SseClient,
         {
           provide: SSE_CLIENT_CONFIG,
           useValue: {
@@ -79,7 +79,7 @@ describe('SseClientService', () => {
       ],
     });
 
-    service = TestBed.inject(SseClientService);
+    service = TestBed.inject(SseClient);
   });
 
   afterEach(() => {
