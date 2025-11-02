@@ -1,5 +1,6 @@
 package com.spectrayan.sse.server.controller;
 
+import com.spectrayan.sse.server.config.SseHeaderHandler;
 import com.spectrayan.sse.server.emitter.SseEmitter;
 import com.spectrayan.sse.server.error.ErrorEvents;
 import com.spectrayan.sse.server.error.SseException;
@@ -7,11 +8,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -30,14 +31,16 @@ public class SseController {
     private static final Logger log = LoggerFactory.getLogger(SseController.class);
 
     private final SseEmitter sseEmitter;
+    private final SseHeaderHandler headerHandler;
 
     /**
-     * Construct the controller with the shared {@link SseEmitter}.
+     * Construct the controller with the shared {@link SseEmitter} and header handler.
      *
      * @param sseEmitter the SSE emitter component handling topic streams
      */
-    public SseController(SseEmitter sseEmitter) {
+    public SseController(SseEmitter sseEmitter, SseHeaderHandler headerHandler) {
         this.sseEmitter = sseEmitter;
+        this.headerHandler = headerHandler;
     }
 
     /**
@@ -57,15 +60,19 @@ public class SseController {
      * @return a {@link Flux} of {@link ServerSentEvent} objects emitted for the topic
      */
     @GetMapping(path = "/{topic}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<ServerSentEvent<Object>> stream(@PathVariable String topic, ServerHttpRequest request) {
+    public Flux<ServerSentEvent<Object>> stream(@PathVariable String topic, ServerWebExchange exchange) {
+        var request = exchange.getRequest();
         String remote = request.getRemoteAddress() != null ? request.getRemoteAddress().toString() : "unknown";
+
+        // Apply configured response headers (static + copy from request) via handler
+        headerHandler.applyResponseHeaders(exchange);
+
         log.info("SSE subscription requested: topic={} from {}", topic, remote);
         return sseEmitter.connect(topic)
                 .doOnSubscribe(s -> {
                     log.debug("SSE stream subscribed: topic={} from {}", topic, remote);
-                    sseEmitter.emitToTopic(topic, "connected");
                 })
-                .doOnCancel(() -> log.info("SSE subscription cancelled: topic={} from {}", topic, remote))
+                /*.doOnCancel(() -> log.info("SSE subscription cancelled: topic={} from {}", topic, remote))
                 .doOnComplete(() -> log.info("SSE stream completed: topic={} from {}", topic, remote))
                 .doOnError(ex -> log.warn("SSE stream error: topic={} from {} error={}", topic, remote, ex.toString()))
                 .onErrorResume(ex -> Mono.deferContextual(ctx -> {
@@ -74,6 +81,6 @@ public class SseController {
                     }
                     return Mono.just(ErrorEvents.fromThrowable(ex, topic, ctx));
                 }))
-                .contextWrite(ctx -> ctx.put("topic", topic));
+                .contextWrite(ctx -> ctx.put("topic", topic))*/;
     }
 }
