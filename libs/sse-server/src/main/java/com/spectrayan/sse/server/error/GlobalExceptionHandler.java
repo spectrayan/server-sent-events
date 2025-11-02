@@ -1,14 +1,13 @@
 package com.spectrayan.sse.server.error;
 
-import com.spectrayan.sse.server.config.SseServerProperties;
-import org.slf4j.MDC;
+import com.spectrayan.sse.server.config.SseHeaderHandler;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.net.URI;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -17,13 +16,14 @@ import java.util.Map;
  * for standard HTTP error responses.
  */
 @RestControllerAdvice
+@Slf4j
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class GlobalExceptionHandler {
 
-    private final SseServerProperties properties;
+    private final SseHeaderHandler headerHandler;
 
-    public GlobalExceptionHandler(SseServerProperties properties) {
-        this.properties = properties;
+    public GlobalExceptionHandler(SseHeaderHandler headerHandler) {
+        this.headerHandler = headerHandler;
     }
 
     @ExceptionHandler(SseException.class)
@@ -53,22 +53,8 @@ public class GlobalExceptionHandler {
     }
 
     private void addConfiguredHeaders(ProblemDetail pd) {
-        Map<String, SseServerProperties.HeaderRule> rules = properties != null ? properties.getLogHeaders() : null;
-        if (rules == null || rules.isEmpty()) return;
-        Map<String, String> returned = new LinkedHashMap<>();
-        rules.forEach((headerName, rule) -> {
-            if (rule != null && rule.isIncludeInProblem()) {
-                String mdcKey = rule.getMdcKey();
-                if (mdcKey != null && !mdcKey.isBlank()) {
-                    String val = MDC.get(mdcKey);
-                    if (val != null && !val.isBlank()) {
-                        // Use original header name as the key in the response map
-                        returned.put(headerName, val);
-                    }
-                }
-            }
-        });
-        if (!returned.isEmpty()) {
+        Map<String, String> returned = headerHandler.problemHeadersFromMdc();
+        if (returned != null && !returned.isEmpty()) {
             pd.setProperty("headers", returned);
         }
     }
