@@ -13,6 +13,7 @@ import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
+import reactor.core.publisher.SignalType;
 
 import java.time.Duration;
 import java.util.Collection;
@@ -35,8 +36,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  * - A lightweight heartbeat event with {@code event="heartbeat"} and data {@code "::heartbeat::"}
  *   is merged into each topic stream every 15 seconds while the stream is active, helping proxies
  *   and clients keep the connection alive.
- * - When the last subscriber of a topic disconnects, the underlying sink is completed and the topic
- *   is removed from memory to free resources.
+ * - Topics remain active in memory even if the last subscriber disconnects. The server keeps
+ *   connections/topics alive and will only complete and remove a topic when a client cancels the
+ *   subscription, an error occurs, or the application terminates (graceful shutdown).
  */
 @Service
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
@@ -88,15 +90,21 @@ public class SseEmitter {
                 .doOnNext(ev -> log.trace("Sending heartbeat on topic {}", topic))
                 .takeUntilOther(sinkFlux.ignoreElements());
 
+        ServerSentEvent<Object> connected = ServerSentEvent.<Object>builder("connected")
+                .event("connected")
+                .build();
         return Flux.merge(sinkFlux, heartbeat)
+                .startWith(connected)
                 .doOnSubscribe(sub -> {
                     int count = channel.subscribers.incrementAndGet();
                     log.debug("Subscriber added to topic {} (now: {})", topic, count);
                 })
                 .doFinally(sig -> {
                     int left = channel.subscribers.decrementAndGet();
-                    if (left <= 0) {
-                        // complete and remove to free resources
+                    boolean shouldCleanup = sig == SignalType.CANCEL || sig == SignalType.ON_ERROR;
+                    if (left <= 0 && shouldCleanup) {
+                        // Only complete and remove the topic when the stream ends due to client cancel or error.
+                        // Do NOT complete after normal emission; keep topic available for future subscribers.
                         channel.sink.tryEmitComplete();
                         topics.remove(topic);
                         log.info("SSE topic {} completed and removed (signal: {})", topic, sig);
@@ -153,7 +161,9 @@ public class SseEmitter {
         ServerSentEvent.Builder<Object> builder = ServerSentEvent.<Object>builder((Object) payload);
         if (eventName != null) builder.event(eventName);
         if (id != null) builder.id(id);
-        log.debug("Emitting to topic {} eventName={} id={} payload={}", topicId, eventName, id, describePayload(payload));
+        if(log.isDebugEnabled()) {
+            log.debug("Emitting to topic {} eventName={} id={} payload={}", topicId, eventName, id, describePayload(payload));
+        }
         Sinks.EmitResult result = channel.sink.tryEmitNext(builder.build());
         if (result.isFailure()) {
             throw mapEmitFailure(topicId, result, eventName, id);
@@ -164,19 +174,13 @@ public class SseEmitter {
         if (payload == null) return "null";
         String type = payload.getClass().getSimpleName();
         int hash = System.identityHashCode(payload);
-        if (payload instanceof CharSequence cs) {
-            return type + "[len=" + cs.length() + "]#" + hash;
-        }
-        if (payload instanceof byte[] bytes) {
-            return type + "[len=" + bytes.length + "]#" + hash;
-        }
-        if (payload instanceof java.util.Collection<?> col) {
-            return type + "[size=" + col.size() + "]#" + hash;
-        }
-        if (payload instanceof java.util.Map<?, ?> map) {
-            return type + "[size=" + map.size() + "]#" + hash;
-        }
-        return type + "#" + hash;
+        return switch (payload) {
+            case CharSequence cs -> type + "[len=" + cs.length() + "]#" + hash;
+            case byte[] bytes -> type + "[len=" + bytes.length + "]#" + hash;
+            case Collection<?> col -> type + "[size=" + col.size() + "]#" + hash;
+            case Map<?, ?> map -> type + "[size=" + map.size() + "]#" + hash;
+            default -> type + "#" + hash;
+        };
     }
 
     private void validateTopicOrThrow(String topic) {
@@ -189,10 +193,14 @@ public class SseEmitter {
     }
 
     private EmissionRejectedException mapEmitFailure(String topic, Sinks.EmitResult result, String eventName, String id) {
-        return new EmissionRejectedException(topic, result.name(), Map.of(
-                "emitResult", result.name(),
-                "eventName", eventName,
-                "id", id
+        String safeEventName = eventName != null ? eventName : "";
+        String safeId = id != null ? id : "";
+        String emitResultName = (result != null) ? result.name() : "NULL";
+        log.warn("Failed to emit to topic {} result={} eventName={} id={}", topic, emitResultName, safeEventName, safeId);
+        return new EmissionRejectedException(topic, emitResultName, Map.of(
+                "emitResult", emitResultName,
+                "eventName", safeEventName,
+                "id", safeId
         ));
     }
 
@@ -205,10 +213,14 @@ public class SseEmitter {
     public <T> void emitToAll(T payload) {
         int count = topics.size();
         if (count == 0) {
-            throw new NoSubscribersException("No active topics/subscribers to broadcast to");
+            log.warn("No active topics to broadcast to; payload ignored");
+            return;
+            //throw new NoSubscribersException("No active topics/subscribers to broadcast to");
         }
         ServerSentEvent<Object> event = ServerSentEvent.<Object>builder((Object) payload).build();
-        log.debug("Broadcasting to {} topic(s) payload={}", count, describePayload(payload));
+        if(log.isDebugEnabled()) {
+            log.debug("Broadcasting to {} topic(s) payload={}", count, describePayload(payload));
+        }
         topics.forEach((id, channel) -> {
             Sinks.EmitResult res = channel.sink.tryEmitNext(event);
             if (res.isFailure()) {
