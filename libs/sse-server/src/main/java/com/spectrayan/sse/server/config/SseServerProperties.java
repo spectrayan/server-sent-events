@@ -3,8 +3,8 @@ package com.spectrayan.sse.server.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Configuration properties for the Spectrayan SSE Server library.
@@ -17,8 +17,9 @@ import java.util.Map;
  * <p>
  * Key concepts:
  * - Header mapping: you can declare request headers that should be copied into the logging MDC
- *   under specific MDC keys. Each header has a {@link HeaderRule} with an MDC key and a flag to
- *   include that header in Problem Details (RFC7807) responses.
+ *   under specific MDC keys. Each header has a {@link SseHeader} with an MDC key and a flag to
+ *   include that header in Problem Details (RFC7807) responses. You can also opt-in to copy the
+ *   incoming header to the SSE response headers and optionally rename it.
  * - Scoped MDC bridge: a global Reactor operator hook copies values from Reactor Context into MDC
  *   only when a context marker key is present. The WebFilter seeds the marker and configured
  *   header values for HTTP request flows handled by this library.
@@ -33,19 +34,31 @@ import java.util.Map;
  *       enabled: true
  *       mdc-bridge-enabled: true
  *       mdc-context-key: sseMdc
- *       log-headers:
- *         X-Request-Id:
+ *       headers:
+ *         # Request-bound headers copied to MDC, included in Problem, and echoed back on response
+ *         - key: X-Request-Id
  *           mdc-key: requestId
  *           include-in-problem: true
- *         X-User-Id:
+ *           copy-to-response: true
+ *           response-header-name: X-Request-Id
+ *         - key: X-User-Id
  *           mdc-key: userId
  *           include-in-problem: false
+ *         # Static response headers
+ *         - key: Cache-Control
+ *           value: no-cache
+ *         - key: X-App
+ *           value: sse-server
  * </pre>
  * Behavior:
- * - For each configured header, if present on the request, its value is placed into MDC using the
- *   configured {@code mdc-key}, and propagated into Reactor Context for downstream operators.
+ * - For each configured header with a {@code key}, if present on the request, and when an {@code mdc-key} is set,
+ *   its value is placed into MDC using that key, and propagated into Reactor Context for downstream operators.
  * - Only headers with {@code include-in-problem=true} are echoed back to clients inside the
  *   Problem Details payload under {@code properties.headers} as {@code {originalHeaderName: value}}.
+ * - When {@code copy-to-response=true}, the original request header value is added to the SSE
+ *   response headers under the same header name or an overridden {@code response-header-name}.
+ * - When a static {@code value} is specified, it is always added to the response headers using
+ *   {@code response-header-name} if provided; otherwise {@code key}.
  * - The Reactor MDC bridge activates only for chains that contain the configured context marker
  *   (default {@code sseMdc}); it can be globally disabled via {@code mdc-bridge-enabled=false}.
  * <p>
@@ -69,9 +82,10 @@ import java.util.Map;
 public class SseServerProperties {
 
     /**
-     * Map of HTTP request header name -> HeaderRule describing how to handle the header.
+     * Unified headers configuration. Each item controls logging (MDC), inclusion in Problem Details,
+     * and response header behavior (static value and/or copy-to-response).
      */
-    private Map<String, HeaderRule> logHeaders = new HashMap<>();
+    private List<SseHeader> headers = new ArrayList<>();
 
     /**
      * Whether the global Reactor Context -> MDC bridge should be enabled. If false, the hook is not registered.
@@ -90,28 +104,7 @@ public class SseServerProperties {
      */
     private boolean enabled = true;
 
-    public void setLogHeaders(Map<String, HeaderRule> logHeaders) {
-        this.logHeaders = (logHeaders != null ? logHeaders : new HashMap<>());
-    }
-
-    /**
-     * Per-header handling rule.
-     */
-    @Data
-    public static class HeaderRule {
-        /**
-         * The MDC key name under which the header value should be stored.
-         * Example: mapping header {@code X-Request-Id} to MDC key {@code requestId} allows you to
-         * reference it in your log pattern with {@code %X{requestId}}.
-         */
-        private String mdcKey;
-        /**
-         * Whether to include this header and value in Problem Details responses under a consolidated
-         * {@code headers} map. Default: false.
-         * <p>
-         * When true and the header is present on the request, the exception handler will add it under
-         * {@code properties.headers[<original-header-name>]} of the RFC7807 response body.
-         */
-        private boolean includeInProblem = false;
+    public void setHeaders(List<SseHeader> headers) {
+        this.headers = (headers != null ? headers : new ArrayList<>());
     }
 }

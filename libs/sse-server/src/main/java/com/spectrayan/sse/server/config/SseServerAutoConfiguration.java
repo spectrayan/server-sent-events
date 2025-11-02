@@ -35,28 +35,34 @@ public class SseServerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    public SseHeaderHandler sseHeaderHandler(SseServerProperties properties) {
+        return new SseHeaderHandler(properties);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean
     @ConditionalOnClass(WebFilter.class)
-    public SseServerWebFilter sseServerWebFilter(SseServerProperties properties) {
-        return new SseServerWebFilter(properties);
+    public SseServerWebFilter sseServerWebFilter(SseServerProperties properties, SseHeaderHandler headerHandler) {
+        return new SseServerWebFilter(properties, headerHandler);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public SseController sseController(SseEmitter emitter) {
-        return new SseController(emitter);
+    public SseController sseController(SseEmitter emitter, SseHeaderHandler headerHandler) {
+        return new SseController(emitter, headerHandler);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public GlobalExceptionHandler sseGlobalExceptionHandler(SseServerProperties properties) {
-        return new GlobalExceptionHandler(properties);
+    public GlobalExceptionHandler sseGlobalExceptionHandler(SseHeaderHandler headerHandler) {
+        return new GlobalExceptionHandler(headerHandler);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "mdc-bridge-enabled", havingValue = "true", matchIfMissing = true)
-    public ReactorMdcConfiguration reactorMdcConfiguration(SseServerProperties properties) {
+    public ReactorMdcConfiguration reactorMdcConfiguration(SseServerProperties properties, SseHeaderHandler headerHandler) {
         // This bean registers a global Reactor hook in its @PostConstruct lifecycle
-        return new ReactorMdcConfiguration(properties);
+        return new ReactorMdcConfiguration(properties, headerHandler);
     }
 }
