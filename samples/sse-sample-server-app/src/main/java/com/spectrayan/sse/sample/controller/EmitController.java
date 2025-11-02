@@ -27,4 +27,12 @@ public class EmitController {
         log.info("Manually emitted event to topic {}", topic);
         return ResponseEntity.accepted().body(Map.of("topic", topic, "status", "emitted"));
     }
+
+    //@GetMapping(path = "/{topic}")
+    public ResponseEntity<Map<String, Object>> get(@PathVariable String topic) {
+        log.info("Get status for topic {}", topic);
+        emitter.emit(topic, "hello");
+        return ResponseEntity.ok(Map.of("topic", topic, "status", "get"));
+    }
+
 }

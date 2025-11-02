@@ -14,7 +14,7 @@ import java.util.UUID;
 public class NotificationScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(NotificationScheduler.class);
-    public static final String TOPIC = "notifications";
+    //public static final String TOPIC = "notifications";
 
     private final SseEmitter sseEmitter;
 
@@ -23,12 +23,12 @@ public class NotificationScheduler {
     }
 
     // Emit a message every 5 seconds
-    @Scheduled(fixedRate = 5000, initialDelay = 2000)
+    //@Scheduled(fixedRate = 5000, initialDelay = 2000)
     public void emitHeartbeatMessage() {
         try {
             String msg = "Hello at " + Instant.now();
-            sseEmitter.emit(TOPIC, "message", msg);
-            log.info("Scheduled message emitted to topic {}", TOPIC);
+            sseEmitter.emit(  msg);
+            log.info("Scheduled message emitted to all topics");
         } catch (Exception ex) {
             log.warn("Failed to emit scheduled message: {}", ex.toString());
         }
@@ -41,8 +41,8 @@ public class NotificationScheduler {
             Notification n = new Notification(UUID.randomUUID().toString(),
                     "Periodic notification",
                     Instant.now());
-            sseEmitter.emit(TOPIC, "notification", n, n.id());
-            log.info("Scheduled complex notification emitted to topic {} id={}", TOPIC, n.id());
+            sseEmitter.emit( n);
+            log.info("Scheduled complex notification emitted to all topics id={}", n.id());
         } catch (Exception ex) {
             log.warn("Failed to emit complex notification: {}", ex.toString());
         }
