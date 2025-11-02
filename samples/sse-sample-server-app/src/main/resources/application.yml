@@ -1,0 +1,26 @@
+spring:
+  application:
+    name: sse-sample-server-app
+server:
+  port: 8081
+
+# Enable the SSE server library and configure MDC bridging + header mappings
+spectrayan:
+  sse:
+    server:
+      enabled: true
+      mdc-bridge-enabled: true
+      mdc-context-key: sseMdc
+      log-headers:
+        X-Request-Id:
+          mdc-key: requestId
+          include-in-problem: true
+        X-User-Id:
+          mdc-key: userId
+          include-in-problem: false
+
+logging:
+  level:
+    root: INFO
+    com.spectrayan.sse.server: DEBUG
+    com.spectrayan.sse.sample: DEBUG
