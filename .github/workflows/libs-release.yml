@@ -58,18 +58,12 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
+          cache: 'maven'
+          cache-dependency-path: '**/pom.xml'
       - name: Set up Maven
         uses: s4u/setup-maven-action@v1.16.0
         with:
           maven-version: ${{ env.MAVEN_VERSION }}
-      - name: Maven cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            maven-${{ runner.os }}-
       - name: Build & test sse-server
         run: mvn -B -U -pl libs/sse-server verify
 
@@ -119,18 +113,12 @@ jobs:
           server-password: OSSRH_PASSWORD     # env var name (provided below)
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+          cache: 'maven'
+          cache-dependency-path: '**/pom.xml'
       - name: Set up Maven
         uses: s4u/setup-maven-action@v1.16.0
         with:
           maven-version: ${{ env.MAVEN_VERSION }}
-      - name: Maven cache
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.m2/repository
-          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
-          restore-keys: |
-            maven-${{ runner.os }}-
       - name: Deploy (release profile)
         env:
           OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
