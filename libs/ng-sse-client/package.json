@@ -1,0 +1,35 @@
+{
+  "name": "@spectrayan-sse/ng-sse-client",
+  "version": "0.0.1",
+  "description": "Angular SSE client library for Server-Sent Events",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://gitlab.com/your-group/server-sent-events.git"
+  },
+  "bugs": {
+    "url": "https://gitlab.com/your-group/server-sent-events/issues"
+  },
+  "homepage": "https://gitlab.com/your-group/server-sent-events#readme",
+  "keywords": [
+    "angular",
+    "sse",
+    "server-sent-events",
+    "eventsource"
+  ],
+  "sideEffects": false,
+  "peerDependencies": {
+    "@angular/common": ">=16 <21 || ^20",
+    "@angular/core": ">=16 <21 || ^20",
+    "rxjs": ">=7 <8"
+  },
+  "ngPackage": {
+    "$schema": "./ng-package.schema.json",
+    "lib": {
+      "entryFile": "src/index.ts"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

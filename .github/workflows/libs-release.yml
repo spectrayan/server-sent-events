@@ -1,0 +1,121 @@
+name: Libraries CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: libs-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------- ANGULAR: build & test ----------
+  ng_build_test:
+    name: Angular ng-sse-client • build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Use npm cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-${{ runner.os }}-
+      - name: Install dependencies
+        run: npm ci
+      - name: Build ng-sse-client
+        run: npx nx build ng-sse-client
+      - name: Unit tests ng-sse-client
+        run: npx nx test ng-sse-client --ci --codeCoverage=false
+
+  # ---------- MAVEN: build & test ----------
+  maven_build_test:
+    name: Java sse-server • build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: Maven cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+      - name: Build & test sse-server
+        run: mvn -B -U -pl libs/sse-server verify
+
+  # ---------- Publish to npm (tags only) ----------
+  publish_npm:
+    name: Publish ng-sse-client to npm
+    needs: [ng_build_test]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    permissions:
+      contents: read
+      id-token: write # for npm provenance (optional)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Install dependencies
+        run: npm ci
+      - name: Build library
+        run: npx nx build ng-sse-client
+      - name: Publish package
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        working-directory: dist/libs/ng-sse-client
+        run: npm publish --access public
+
+  # ---------- Publish to Maven Central (tags only) ----------
+  publish_maven:
+    name: Publish sse-server to Maven Central (OSSRH)
+    needs: [maven_build_test]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java & GPG for Maven Central
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+          server-id: 'ossrh'                  # matches <distributionManagement><repository><id>
+          server-username: OSSRH_USERNAME     # env var name (provided below)
+          server-password: OSSRH_PASSWORD     # env var name (provided below)
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Maven cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.m2/repository
+          key: maven-${{ runner.os }}-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            maven-${{ runner.os }}-
+      - name: Deploy (release profile)
+        env:
+          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+        run: mvn -B -pl libs/sse-server -P release deploy
