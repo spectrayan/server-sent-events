@@ -4,7 +4,7 @@
 
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level topic=%X{topic:-na} [%thread] %logger{36} - %msg%n</pattern>
+            <pattern>%d{yyyy-MM-dd'T'HH:mm:ss.SSSXXX} %-5level%replace(%X{topic}){'^(.+)$',' topic=$1'} [%thread] %logger{36} - %msg%n</pattern>
         </encoder>
     </appender>
 
