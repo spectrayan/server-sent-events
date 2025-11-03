@@ -59,8 +59,8 @@ jobs:
           distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
           cache: 'maven'
-      - name: Set up Maven
-        uses: s4u/setup-maven-action@v1.16.0
+      - name: Setup Maven
+        uses: stCarolas/setup-maven@v4
         with:
           maven-version: ${{ env.MAVEN_VERSION }}
       - name: Build & test sse-server
