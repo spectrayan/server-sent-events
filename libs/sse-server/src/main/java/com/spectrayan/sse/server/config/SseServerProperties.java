@@ -74,7 +74,7 @@ import java.util.List;
  * <p>
  * Tip: reference your MDC keys in Logback patterns, e.g.
  * <pre>
- * <pattern>%d %-5level topic=%X{topic:-na} user=%X{userId:-na} [%thread] %logger - %msg%n</pattern>
+ * &lt;pattern&gt;%d %-5level topic=%X{topic:-na} user=%X{userId:-na} [%thread] %logger - %msg%n&lt;/pattern&gt;
  * </pre>
  */
 @Data

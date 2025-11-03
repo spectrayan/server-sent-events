@@ -19,12 +19,12 @@ import java.util.Set;
  * SseEmitter) don't need to manually copy values.
  *
  * Scoping: the bridge only activates for reactive chains that include a context marker key
- * (see {@link SseServerProperties#getMdcContextKey()}). This ensures host applications using
+ * (see {@link SseServerProperties} property `mdcContextKey`). This ensures host applications using
  * this library as a dependency don't get their unrelated Reactor pipelines affected.
  *
  * Keys bridged:
  * - topic (set by controller when subscribing)
- * - any keys configured via {@link SseServerProperties#getHeaders()} values (MDC key names)
+ * - any keys configured via {@link SseServerProperties} `headers` (MDC key names)
  *
  * Note: Correlation ID handling has been removed from the bridge.
  */

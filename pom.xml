@@ -57,18 +57,6 @@
   </distributionManagement>
 
   <build>
-    <plugins>
-      <plugin>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-maven-plugin</artifactId>
-        <version>3.2.0</version>
-      </plugin>
-      <plugin>
-        <groupId>dev.nx.maven</groupId>
-        <artifactId>nx-maven-plugin</artifactId>
-        <version>0.0.7</version>
-      </plugin>
-    </plugins>
     <pluginManagement>
       <plugins>
         <plugin>

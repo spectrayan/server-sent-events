@@ -14,7 +14,7 @@ import java.util.*;
  * via Reactor Context for downstream reactive chains. Correlation ID handling has been removed;
  * only explicitly configured headers are managed here.
  * <p>
- * Configuration is provided via unified {@link SseServerProperties#getHeaders()} list.
+ * Configuration is provided via unified {@link SseServerProperties} `headers` list.
  */
 @Component
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)

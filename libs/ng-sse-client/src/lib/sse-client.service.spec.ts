@@ -37,14 +37,13 @@ class MockEventSource {
   }
 
   emitMessage(data: any, eventId?: string) {
-    const ev = new MessageEvent('message', { data });
-    (ev as any).lastEventId = eventId;
+    // Use a plain object shaped like MessageEvent to avoid read-only lastEventId on JSDOM's MessageEvent
+    const ev = { data, lastEventId: eventId } as unknown as MessageEvent;
     this.onmessage?.(ev);
   }
 
   emitNamed(eventName: string, data: any, eventId?: string) {
-    const ev = new MessageEvent(eventName, { data });
-    (ev as any).lastEventId = eventId;
+    const ev = { data, lastEventId: eventId } as unknown as MessageEvent;
     this.listeners.get(eventName)?.forEach((l) => l(ev));
   }
 
