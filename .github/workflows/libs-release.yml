@@ -9,6 +9,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+env:
+  NODE_VERSION: '20'
+  NPM_VERSION: '11.6.1'
+  JAVA_VERSION: '21'
+  MAVEN_VERSION: '3.9.9'
+
 concurrency:
   group: libs-ci-${{ github.ref }}
   cancel-in-progress: true
@@ -23,8 +29,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
+      - name: Use specific npm version
+        run: npm i -g npm@${{ env.NPM_VERSION }} && npm --version
       - name: Use npm cache
         uses: actions/cache@v4
         with:
@@ -45,11 +53,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 21
+      - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
+      - name: Set up Maven
+        uses: s4u/setup-maven-action@v1.16.0
+        with:
+          maven-version: ${{ env.MAVEN_VERSION }}
       - name: Maven cache
         uses: actions/cache@v4
         with:
@@ -75,8 +87,10 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: ${{ env.NODE_VERSION }}
           registry-url: 'https://registry.npmjs.org'
+      - name: Use specific npm version
+        run: npm i -g npm@${{ env.NPM_VERSION }} && npm --version
       - name: Install dependencies
         run: npm ci
       - name: Build library
@@ -99,12 +113,16 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '21'
+          java-version: ${{ env.JAVA_VERSION }}
           server-id: 'ossrh'                  # matches <distributionManagement><repository><id>
           server-username: OSSRH_USERNAME     # env var name (provided below)
           server-password: OSSRH_PASSWORD     # env var name (provided below)
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+      - name: Set up Maven
+        uses: s4u/setup-maven-action@v1.16.0
+        with:
+          maven-version: ${{ env.MAVEN_VERSION }}
       - name: Maven cache
         uses: actions/cache@v4
         with:
