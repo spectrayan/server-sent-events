@@ -32,8 +32,6 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           npm-version: ${{ env.NPM_VERSION }}
           registry-url: 'https://registry.npmjs.org'
-        secrets:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Install dependencies
         uses: spectrayan/github-workflows/.github/actions/npm-install@v1
         with:
