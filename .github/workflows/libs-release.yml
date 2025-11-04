@@ -27,23 +27,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
-        uses: spectrayan/github-workflows/.github/actions/node-setup@main
+        uses: github-workflows/.github/actions/node-setup@main
         with:
           node-version: ${{ env.NODE_VERSION }}
           npm-version: ${{ env.NPM_VERSION }}
           registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies
-        uses: spectrayan/github-workflows/.github/actions/npm-install@main
+        uses: github-workflows/.github/actions/npm-install@main
         with:
           working-directory: '.'
           ci: true
       - name: Build
-        uses: spectrayan/github-workflows/.github/actions/node-build@main
+        uses: github-workflows/.github/actions/node-build@main
         with:
           working-directory: '.'
           script: 'build'
       - name: Test
-        uses: spectrayan/github-workflows/.github/actions/node-test@main
+        uses: github-workflows/.github/actions/node-test@main
         with:
           working-directory: '.'
           script: 'test'
@@ -56,17 +56,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Java
-        uses: spectrayan/github-workflows/.github/actions/java-setup@main
+        uses: github-workflows/.github/actions/java-setup@main
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
       - name: Maven Setup
-        uses: spectrayan/github-workflows/.github/actions/maven-setup@main
+        uses: github-workflows/.github/actions/maven-setup@main
         with:
           settings-file: .mvn/settings.xml
           working-directory: '.'
       - name: Build & test sse-server
-        uses: spectrayan/github-workflows/.github/actions/maven-build@main
+        uses: github-workflows/.github/actions/maven-build@main
         with:
           goals: '-B -U -pl libs/sse-server verify'
           working-directory: '.'
@@ -83,18 +83,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node
-        uses: spectrayan/github-workflows/.github/actions/node-setup@main
+        uses: github-workflows/.github/actions/node-setup@main
         with:
           node-version: ${{ env.NODE_VERSION }}
           npm-version: ${{ env.NPM_VERSION }}
           registry-url: 'https://registry.npmjs.org'
       - name: Install dependencies
-        uses: spectrayan/github-workflows/.github/actions/npm-install@main
+        uses: github-workflows/.github/actions/npm-install@main
         with:
           working-directory: '.'
           ci: true
       - name: Build and Publish (npm run publish)
-        uses: spectrayan/github-workflows/.github/actions/node-build@main
+        uses: github-workflows/.github/actions/node-build@main
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         with:
@@ -110,17 +110,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Setup Java
-        uses: spectrayan/github-workflows/.github/actions/java-setup@main
+        uses: github-workflows/.github/actions/java-setup@main
         with:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: 'temurin'
       - name: Maven Setup
-        uses: spectrayan/github-workflows/.github/actions/maven-setup@main
+        uses: github-workflows/.github/actions/maven-setup@main
         with:
           settings-file: .mvn/settings.xml
           working-directory: '.'
       - name: Deploy (release profile)
-        uses: spectrayan/github-workflows/.github/actions/maven-build@main
+        uses: github-workflows/.github/actions/maven-build@main
         with:
           goals: '-B -pl libs/sse-server -P release deploy'
           working-directory: '.'
