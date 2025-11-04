@@ -16,7 +16,7 @@
 
   <name>spectrayan-sse-parent</name>
   <description>Parent POM for Spectrayan SSE project</description>
-  <url>https://gitlab.com/your-group/server-sent-events</url>
+  <url>https://gitlab.com/spectrayan/server-sent-events</url>
 
   <modules>
     <module>libs/sse-server</module>
@@ -32,10 +32,10 @@
   </licenses>
 
   <scm>
-    <connection>scm:git:https://gitlab.com/your-group/server-sent-events.git</connection>
-    <developerConnection>scm:git:ssh://git@gitlab.com/your-group/server-sent-events.git</developerConnection>
+    <connection>scm:git:https://gitlab.com/spectrayan/server-sent-events.git</connection>
+    <developerConnection>scm:git:ssh://git@gitlab.com/spectrayan/server-sent-events.git</developerConnection>
     <tag>HEAD</tag>
-    <url>https://gitlab.com/your-group/server-sent-events</url>
+    <url>https://gitlab.com/spectrayan/server-sent-events</url>
   </scm>
 
   <properties>
@@ -82,10 +82,15 @@
       </properties>
       <build>
         <plugins>
-          <plugin>
-            <groupId>org.sonatype.plugins</groupId>
-            <artifactId>nexus-staging-maven-plugin</artifactId>
-          </plugin>
+            <plugin>
+                <groupId>org.sonatype.central</groupId>
+                <artifactId>central-publishing-maven-plugin</artifactId>
+                <version>0.9.0</version>
+                <extensions>true</extensions>
+                <configuration>
+                    <publishingServerId>central</publishingServerId>
+                </configuration>
+            </plugin>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-source-plugin</artifactId>
@@ -109,27 +114,6 @@
                 <goals>
                   <goal>jar</goal>
                 </goals>
-              </execution>
-            </executions>
-          </plugin>
-          <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-gpg-plugin</artifactId>
-            <version>3.2.4</version>
-            <executions>
-              <execution>
-                <id>sign-artifacts</id>
-                <phase>verify</phase>
-                <goals>
-                  <goal>sign</goal>
-                </goals>
-                <configuration>
-                  <gpgArguments>
-                    <arg>--pinentry-mode</arg>
-                    <arg>loopback</arg>
-                  </gpgArguments>
-                  <passphrase>${env.GPG_PASSPHRASE}</passphrase>
-                </configuration>
               </execution>
             </executions>
           </plugin>

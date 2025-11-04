@@ -26,26 +26,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: spectrayan/github-workflows/.github/actions/node-setup@main
         with:
           node-version: ${{ env.NODE_VERSION }}
+          npm-version: ${{ env.NPM_VERSION }}
           registry-url: 'https://registry.npmjs.org'
-      - name: Use specific npm version
-        run: npm i -g npm@${{ env.NPM_VERSION }} && npm --version
-      - name: Use npm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: npm-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-          restore-keys: |
-            npm-${{ runner.os }}-
       - name: Install dependencies
-        run: npm ci
-      - name: Build ng-sse-client
-        run: npx nx build ng-sse-client
-      - name: Unit tests ng-sse-client
-        run: npx nx test ng-sse-client --ci --codeCoverage=false
+        uses: spectrayan/github-workflows/.github/actions/npm-install@main
+        with:
+          working-directory: '.'
+          ci: true
+      - name: Build
+        uses: spectrayan/github-workflows/.github/actions/node-build@main
+        with:
+          working-directory: '.'
+          script: 'build'
+      - name: Test
+        uses: spectrayan/github-workflows/.github/actions/node-test@main
+        with:
+          working-directory: '.'
+          script: 'test'
+          args: ''
 
   # ---------- MAVEN: build & test ----------
   maven_build_test:
@@ -53,18 +55,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK
-        uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: spectrayan/github-workflows/.github/actions/java-setup@main
         with:
-          distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
-          cache: 'maven'
-      - name: Setup Maven
-        uses: stCarolas/setup-maven@v4
+          distribution: 'temurin'
+      - name: Maven Setup
+        uses: spectrayan/github-workflows/.github/actions/maven-setup@main
         with:
-          maven-version: ${{ env.MAVEN_VERSION }}
+          settings-file: .mvn/settings.xml
+          working-directory: '.'
       - name: Build & test sse-server
-        run: mvn -B -U -pl libs/sse-server verify
+        uses: spectrayan/github-workflows/.github/actions/maven-build@main
+        with:
+          goals: '-B -U -pl libs/sse-server verify'
+          working-directory: '.'
 
   # ---------- Publish to npm (tags only) ----------
   publish_npm:
@@ -77,22 +82,24 @@ jobs:
       id-token: write # for npm provenance (optional)
     steps:
       - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: spectrayan/github-workflows/.github/actions/node-setup@main
         with:
           node-version: ${{ env.NODE_VERSION }}
+          npm-version: ${{ env.NPM_VERSION }}
           registry-url: 'https://registry.npmjs.org'
-      - name: Use specific npm version
-        run: npm i -g npm@${{ env.NPM_VERSION }} && npm --version
       - name: Install dependencies
-        run: npm ci
-      - name: Build library
-        run: npx nx build ng-sse-client
-      - name: Publish package
+        uses: spectrayan/github-workflows/.github/actions/npm-install@main
+        with:
+          working-directory: '.'
+          ci: true
+      - name: Build and Publish (npm run publish)
+        uses: spectrayan/github-workflows/.github/actions/node-build@main
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        working-directory: dist/libs/ng-sse-client
-        run: npm publish --access public
+        with:
+          working-directory: '.'
+          script: 'publish'
 
   # ---------- Publish to Maven Central (tags only) ----------
   publish_maven:
@@ -102,25 +109,18 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Java & GPG for Maven Central
-        uses: actions/setup-java@v4
+      - name: Setup Java
+        uses: spectrayan/github-workflows/.github/actions/java-setup@main
         with:
-          distribution: 'temurin'
           java-version: ${{ env.JAVA_VERSION }}
-          server-id: 'ossrh'                  # matches <distributionManagement><repository><id>
-          server-username: OSSRH_USERNAME     # env var name (provided below)
-          server-password: OSSRH_PASSWORD     # env var name (provided below)
-          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
-          cache: 'maven'
-          cache-dependency-path: '**/pom.xml'
-      - name: Set up Maven
-        uses: s4u/setup-maven-action@v1.16.0
+          distribution: 'temurin'
+      - name: Maven Setup
+        uses: spectrayan/github-workflows/.github/actions/maven-setup@main
         with:
-          maven-version: ${{ env.MAVEN_VERSION }}
+          settings-file: .mvn/settings.xml
+          working-directory: '.'
       - name: Deploy (release profile)
-        env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-        run: mvn -B -pl libs/sse-server -P release deploy
+        uses: spectrayan/github-workflows/.github/actions/maven-build@main
+        with:
+          goals: '-B -pl libs/sse-server -P release deploy'
+          working-directory: '.'

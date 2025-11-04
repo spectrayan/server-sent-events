@@ -2,7 +2,11 @@
   "name": "@spectrayan-sse/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "build": "nx build ng-sse-client",
+    "test": "nx test ng-sse-client --ci --codeCoverage=false",
+    "publish": "npm config set provenance true && nx build ng-sse-client && npm publish --access public --prefix dist/libs/ng-sse-client"
+  },
   "private": true,
   "dependencies": {
     "@angular/common": "~20.3.0",
