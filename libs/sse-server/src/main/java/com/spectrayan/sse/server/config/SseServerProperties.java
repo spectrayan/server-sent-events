@@ -3,108 +3,122 @@ package com.spectrayan.sse.server.config;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Configuration properties for the Spectrayan SSE Server library.
- * <p>
- * Prefix: {@code spectrayan.sse.server}
- * <p>
- * These properties control whether the library is enabled, how logging context (MDC) is
- * populated from incoming HTTP headers, and how/when the global Reactor Context → MDC bridge
- * should be applied to reactive chains created by this library.
- * <p>
- * Key concepts:
- * - Header mapping: you can declare request headers that should be copied into the logging MDC
- *   under specific MDC keys. Each header has a {@link SseHeader} with an MDC key and a flag to
- *   include that header in Problem Details (RFC7807) responses. You can also opt-in to copy the
- *   incoming header to the SSE response headers and optionally rename it.
- * - Scoped MDC bridge: a global Reactor operator hook copies values from Reactor Context into MDC
- *   only when a context marker key is present. The WebFilter seeds the marker and configured
- *   header values for HTTP request flows handled by this library.
- * - Master enable switch: all beans (controller, emitter, exception handler, WebFilter, Reactor
- *   MDC hook) are created only when {@code enabled=true}.
- * <p>
- * Example (application.yml):
- * <pre>
- * spectrayan:
- *   sse:
- *     server:
- *       enabled: true
- *       mdc-bridge-enabled: true
- *       mdc-context-key: sseMdc
- *       headers:
- *         # Request-bound headers copied to MDC, included in Problem, and echoed back on response
- *         - key: X-Request-Id
- *           mdc-key: requestId
- *           include-in-problem: true
- *           copy-to-response: true
- *           response-header-name: X-Request-Id
- *         - key: X-User-Id
- *           mdc-key: userId
- *           include-in-problem: false
- *         # Static response headers
- *         - key: Cache-Control
- *           value: no-cache
- *         - key: X-App
- *           value: sse-server
- * </pre>
- * Behavior:
- * - For each configured header with a {@code key}, if present on the request, and when an {@code mdc-key} is set,
- *   its value is placed into MDC using that key, and propagated into Reactor Context for downstream operators.
- * - Only headers with {@code include-in-problem=true} are echoed back to clients inside the
- *   Problem Details payload under {@code properties.headers} as {@code {originalHeaderName: value}}.
- * - When {@code copy-to-response=true}, the original request header value is added to the SSE
- *   response headers under the same header name or an overridden {@code response-header-name}.
- * - When a static {@code value} is specified, it is always added to the response headers using
- *   {@code response-header-name} if provided; otherwise {@code key}.
- * - The Reactor MDC bridge activates only for chains that contain the configured context marker
- *   (default {@code sseMdc}); it can be globally disabled via {@code mdc-bridge-enabled=false}.
- * <p>
- * Disabling the library (no beans created):
- * <pre>
- * spectrayan:
- *   sse:
- *     server:
- *       enabled: false
- * </pre>
- * Alternatively, host apps may exclude the auto-configuration class via
- * {@code spring.autoconfigure.exclude=com.spectrayan.sse.server.config.SseServerAutoConfiguration}.
- * <p>
- * Tip: reference your MDC keys in Logback patterns, e.g.
- * <pre>
- * &lt;pattern&gt;%d %-5level topic=%X{topic:-na} user=%X{userId:-na} [%thread] %logger - %msg%n&lt;/pattern&gt;
- * </pre>
+ * Prefix: spectrayan.sse.server
  */
 @Data
 @ConfigurationProperties(prefix = "spectrayan.sse.server")
 public class SseServerProperties {
 
-    /**
-     * Unified headers configuration. Each item controls logging (MDC), inclusion in Problem Details,
-     * and response header behavior (static value and/or copy-to-response).
-     */
-    private List<SseHeader> headers = new ArrayList<>();
+    // --- Core switches ---
+    private boolean enabled = true;
 
-    /**
-     * Whether the global Reactor Context -> MDC bridge should be enabled. If false, the hook is not registered.
-     */
+    // MDC bridge
     private boolean mdcBridgeEnabled = true;
-
-    /**
-     * The Reactor Context key used as a marker to activate the MDC bridge for a given reactive chain.
-     * Only when this key is present in the Context will the bridge copy values to MDC.
-     */
     private String mdcContextKey = "sseMdc";
 
-    /**
-     * Master feature flag. When false, the SSE server library does not initialize any beans
-     * (controller, emitter, web filter, exception handler, MDC bridge, etc.). Defaults to true.
-     */
-    private boolean enabled = true;
+    // Headers mapping and response/static headers
+    private List<SseHeader> headers = new ArrayList<>();
+
+    // Controller/API config
+    private Controller controller = new Controller();
+
+    // Stream behavior
+    private Stream stream = new Stream();
+
+    // Topic validation/limits
+    private Topics topics = new Topics();
+
+    // Emitter/sink/backpressure settings
+    private Emitter emitter = new Emitter();
+
+    // WebFlux-related settings
+    private Webflux webflux = new Webflux();
+
+    // CORS configuration
+    private Cors cors = new Cors();
 
     public void setHeaders(List<SseHeader> headers) {
         this.headers = (headers != null ? headers : new ArrayList<>());
+    }
+
+    @Data
+    public static class Controller {
+        /** Base path for the controller mapping. Example: /sse */
+        private String basePath = "/sse";
+        /** When true, expose the SSE endpoint using a functional RouterFunction instead of the controller. */
+        private boolean routerEnabled = false;
+    }
+
+    @Data
+    public static class Stream {
+        /** Send an initial "connected" event */
+        private boolean connectedEventEnabled = true;
+        private String connectedEventName = "connected";
+        private String connectedEventData = "connected";
+
+        /** Emit SSE retry control line at start */
+        private boolean retryEnabled = true;
+        private Duration retry = Duration.ofSeconds(3);
+
+        /** Heartbeat settings */
+        private boolean heartbeatEnabled = true;
+        private Duration heartbeatInterval = Duration.ofSeconds(15);
+        private String heartbeatEventName = "heartbeat";
+        private String heartbeatData = "::heartbeat::";
+
+        /** When errors happen on the stream, map to SSE error events instead of terminating */
+        private boolean mapErrorsToSse = true;
+    }
+
+    @Data
+    public static class Topics {
+        /** Regex for valid topic identifiers */
+        private String pattern = "^[A-Za-z0-9._-]+$";
+        /** Max subscribers per topic (<=0 means unlimited) */
+        private int maxSubscribers = 0;
+    }
+
+    @Data
+    public static class Emitter {
+        /** Sink type: multicast or replay */
+        private SinkType sinkType = SinkType.MULTICAST;
+        /** Replay size when using REPLAY sink */
+        private int replaySize = 0;
+    }
+
+    public enum SinkType { MULTICAST, REPLAY }
+
+    @Data
+    public static class Webflux {
+        /** WebFilter order for the MDC/copy headers filter */
+        private int filterOrder = 0;
+        /** Enable HTTP compression for SSE responses (off by default) */
+        private boolean compression = false;
+    }
+
+    @Data
+    public static class Cors {
+        /** Enable library-provided CORS configuration for the SSE controller only. */
+        private boolean enabled = false;
+        /** Comma-separated or list of allowed origins. Use "*" for all. */
+        private List<String> allowedOrigins = List.of();
+        /** Allowed HTTP methods for CORS (e.g., GET,POST). Defaults to GET for SSE. */
+        private List<String> allowedMethods = List.of("GET");
+        /** Allowed request headers. */
+        private List<String> allowedHeaders = List.of("*");
+        /** Exposed response headers. */
+        private List<String> exposedHeaders = List.of();
+        /** Whether user credentials are supported. */
+        private Boolean allowCredentials = null;
+        /** Max age for preflight cache. */
+        private Duration maxAge = Duration.ofHours(1);
+        /** Optional path pattern override. If blank, will default to controller base path + "/**". */
+        private String pathPattern;
     }
 }
