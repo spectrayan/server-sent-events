@@ -24,7 +24,7 @@ import reactor.core.publisher.Mono;
  * {@link SseEmitter}.
  */
 @RestController
-@RequestMapping
+@RequestMapping("${spectrayan.sse.server.base-path:/sse}")
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class SseController {
 
