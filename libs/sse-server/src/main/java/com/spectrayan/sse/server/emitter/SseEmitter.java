@@ -47,19 +47,40 @@ public class SseEmitter {
     private static final Logger log = LoggerFactory.getLogger(SseEmitter.class);
 
     private final SseServerProperties properties;
+    private final com.spectrayan.sse.server.customize.SseEmitterCustomizer sinkCustomizer;
 
-    public SseEmitter(SseServerProperties properties) {
+    public SseEmitter(SseServerProperties properties, org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseEmitterCustomizer> sinkCustomizer) {
         this.properties = properties;
+        this.sinkCustomizer = sinkCustomizer != null ? sinkCustomizer.getIfAvailable() : null;
     }
 
-    private static final String TOPIC_PATTERN = "^[A-Za-z0-9._-]+$";
+    private Sinks.Many<ServerSentEvent<Object>> createSink(String topic) {
+        if (sinkCustomizer != null) {
+            @SuppressWarnings("unchecked")
+            Sinks.Many<ServerSentEvent<Object>> custom = (Sinks.Many<ServerSentEvent<Object>>) (Sinks.Many<?>) sinkCustomizer.createSink(topic, properties);
+            if (custom != null) return custom;
+        }
+        SseServerProperties.SinkType type = properties.getEmitter().getSinkType();
+        return switch (type) {
+            case REPLAY -> {
+                int size = Math.max(0, properties.getEmitter().getReplaySize());
+                if (size > 0) {
+                    yield Sinks.many().replay().limit(size);
+                } else {
+                    yield Sinks.many().replay().all();
+                }
+            }
+            case MULTICAST -> Sinks.many().multicast().directBestEffort();
+        };
+    }
 
     /**
      * Holder for the per-topic sink and its live subscriber count.
      */
     private static class SseTopic {
-        final Sinks.Many<ServerSentEvent<Object>> sink = Sinks.many().multicast().directBestEffort();
+        final Sinks.Many<ServerSentEvent<Object>> sink;
         final AtomicInteger subscribers = new AtomicInteger(0);
+        SseTopic(Sinks.Many<ServerSentEvent<Object>> sink) { this.sink = sink; }
     }
 
     private final Map<String, SseTopic> topics = new ConcurrentHashMap<>();
@@ -78,40 +99,57 @@ public class SseEmitter {
         validateTopicOrThrow(topic);
         SseTopic channel = topics.computeIfAbsent(topic, id -> {
             log.info("Creating SSE topic: {}", id);
-            return new SseTopic();
+            return new SseTopic(createSink(id));
         });
 
-        Flux<ServerSentEvent<Object>> sinkFlux = channel.sink.asFlux();
-        // Heartbeat tied to lifecycle of the sink so it cancels when the sink completes
-        Flux<ServerSentEvent<Object>> heartbeat = Flux.interval(Duration.ofSeconds(15))
-                .map(t -> ServerSentEvent.<Object>builder("::heartbeat::")
-                        .event("heartbeat")
-                        .build())
-                .doOnNext(ev -> log.trace("Sending heartbeat on topic {}", topic))
-                .takeUntilOther(sinkFlux.ignoreElements());
+        // Enforce max subscribers if configured
+        int max = properties.getTopics().getMaxSubscribers();
+        return Flux.defer(() -> {
+            if (max > 0 && channel.subscribers.get() >= max) {
+                throw new com.spectrayan.sse.server.error.SseException(
+                        com.spectrayan.sse.server.error.ErrorCode.SUBSCRIPTION_REJECTED,
+                        "Max subscribers exceeded for topic " + topic,
+                        topic
+                );
+            }
 
-        ServerSentEvent<Object> connected = ServerSentEvent.<Object>builder("connected")
-                .event("connected")
-                .build();
-        return Flux.merge(sinkFlux, heartbeat)
-                .startWith(connected)
-                .doOnSubscribe(sub -> {
-                    int count = channel.subscribers.incrementAndGet();
-                    log.debug("Subscriber added to topic {} (now: {})", topic, count);
-                })
-                .doFinally(sig -> {
-                    int left = channel.subscribers.decrementAndGet();
-                    boolean shouldCleanup = sig == SignalType.CANCEL || sig == SignalType.ON_ERROR;
-                    if (left <= 0 && shouldCleanup) {
-                        // Only complete and remove the topic when the stream ends due to client cancel or error.
-                        // Do NOT complete after normal emission; keep topic available for future subscribers.
-                        channel.sink.tryEmitComplete();
-                        topics.remove(topic);
-                        log.info("SSE topic {} completed and removed (signal: {})", topic, sig);
-                    } else {
-                        log.debug("Subscriber removed from topic {} (remaining: {}, signal: {})", topic, left, sig);
-                    }
-                });
+            Flux<ServerSentEvent<Object>> sinkFlux = channel.sink.asFlux();
+
+            Flux<ServerSentEvent<Object>> heartbeat = Flux.never();
+            if (properties.getStream().isHeartbeatEnabled()) {
+                heartbeat = Flux.interval(properties.getStream().getHeartbeatInterval())
+                    .map(t -> ServerSentEvent.<Object>builder(properties.getStream().getHeartbeatData())
+                            .event(properties.getStream().getHeartbeatEventName())
+                            .build())
+                    .doOnNext(ev -> log.trace("Sending heartbeat on topic {}", topic))
+                    .takeUntilOther(sinkFlux.ignoreElements());
+            }
+
+            Flux<ServerSentEvent<Object>> merged = Flux.merge(sinkFlux, heartbeat);
+            if (properties.getStream().isConnectedEventEnabled()) {
+                ServerSentEvent<Object> connected = ServerSentEvent.<Object>builder(properties.getStream().getConnectedEventData())
+                    .event(properties.getStream().getConnectedEventName())
+                    .build();
+                merged = merged.startWith(connected);
+            }
+
+            return merged
+                    .doOnSubscribe(sub -> {
+                        int count = channel.subscribers.incrementAndGet();
+                        log.debug("Subscriber added to topic {} (now: {})", topic, count);
+                    })
+                    .doFinally(sig -> {
+                        int left = channel.subscribers.decrementAndGet();
+                        boolean shouldCleanup = sig == SignalType.CANCEL || sig == SignalType.ON_ERROR;
+                        if (left <= 0 && shouldCleanup) {
+                            channel.sink.tryEmitComplete();
+                            topics.remove(topic);
+                            log.info("SSE topic {} completed and removed (signal: {})", topic, sig);
+                        } else {
+                            log.debug("Subscriber removed from topic {} (remaining: {}, signal: {})", topic, left, sig);
+                        }
+                    });
+        });
     }
 
     /**
@@ -187,8 +225,9 @@ public class SseEmitter {
         if (topic == null || topic.isBlank()) {
             throw new InvalidTopicException(topic, "Topic must not be null or blank");
         }
-        if (!topic.matches(TOPIC_PATTERN)) {
-            throw new InvalidTopicException(topic, "Topic contains illegal characters; allowed: " + TOPIC_PATTERN);
+        String pattern = properties.getTopics().getPattern();
+        if (pattern != null && !topic.matches(pattern)) {
+            throw new InvalidTopicException(topic, "Topic contains illegal characters; allowed pattern: " + pattern);
         }
     }
 

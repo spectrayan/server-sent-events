@@ -1,7 +1,9 @@
 package com.spectrayan.sse.server.error;
 
 import com.spectrayan.sse.server.config.SseHeaderHandler;
+import com.spectrayan.sse.server.customize.SseErrorCustomizer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -21,13 +23,17 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     private final SseHeaderHandler headerHandler;
+    private final SseErrorCustomizer errorCustomizer;
 
-    public GlobalExceptionHandler(SseHeaderHandler headerHandler) {
+    public GlobalExceptionHandler(SseHeaderHandler headerHandler, ObjectProvider<SseErrorCustomizer> errorCustomizer) {
         this.headerHandler = headerHandler;
+        this.errorCustomizer = errorCustomizer.getIfAvailable();
     }
 
     @ExceptionHandler(SseException.class)
     public ProblemDetail handleSseException(SseException ex) {
+        ProblemDetail custom = customize(ex);
+        if (custom != null) return custom;
         ProblemDetail pd = ProblemDetail.forStatus(mapStatus(ex.getCode()));
         pd.setTitle(ex.getCode().name());
         pd.setDetail(ex.getMessage());
@@ -44,12 +50,23 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Throwable.class)
     public ProblemDetail handleGeneric(Throwable ex) {
+        ProblemDetail custom = customize(ex);
+        if (custom != null) return custom;
         ProblemDetail pd = ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
         pd.setTitle(ErrorCode.INTERNAL_ERROR.name());
         pd.setDetail(ex.getMessage() != null ? ex.getMessage() : ex.toString());
         pd.setType(URI.create("about:blank"));
         addConfiguredHeaders(pd);
         return pd;
+    }
+
+    private ProblemDetail customize(Throwable ex) {
+        try {
+            return errorCustomizer != null ? errorCustomizer.toProblem(ex) : null;
+        } catch (Throwable t) {
+            log.warn("SseErrorCustomizer failed: {}", t.toString());
+            return null;
+        }
     }
 
     private void addConfiguredHeaders(ProblemDetail pd) {
