@@ -1,6 +1,7 @@
 package com.spectrayan.sse.server.config;
 
 import org.slf4j.MDC;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.http.server.reactive.ServerHttpResponse;
 import org.springframework.util.StringUtils;
@@ -48,27 +49,55 @@ public class SseHeaderHandler {
      * Apply response headers according to configuration:
      * - Any header with a static {@code value} is added to the response (using responseHeaderName or key)
      * - Any header with {@code copyToResponse=true} copies the incoming request header value if present
+     *
+     * Additionally, to avoid CORS conflicts and duplicate/multi-valued headers:
+     * - Any header whose name starts with "Access-Control-" (case-insensitive) is ignored here; use the CORS config.
+     * - When adding a header, if the same value already exists it is skipped; if a different value exists, it is replaced
+     *   so that the response has at most one value per header name managed by this handler.
      */
     public void applyResponseHeaders(ServerWebExchange exchange) {
         if (headers.isEmpty()) return;
         ServerHttpRequest request = exchange.getRequest();
         ServerHttpResponse response = exchange.getResponse();
+        HttpHeaders out = response.getHeaders();
         for (SseHeader rule : headers) {
             if (rule == null) continue;
             String key = rule.getKey();
             String outName = StringUtils.hasText(rule.getResponseHeaderName()) ? rule.getResponseHeaderName() : key;
+            if (!StringUtils.hasText(outName)) continue;
+
+            // Skip all Access-Control-* headers to avoid conflicts with CorsWebFilter
+            String lowerName = outName.toLowerCase(Locale.ROOT);
+            if (lowerName.startsWith("access-control-")) {
+                continue;
+            }
+
             // 1) Static value
-            if (StringUtils.hasText(rule.getValue()) && StringUtils.hasText(outName)) {
-                response.getHeaders().add(outName, rule.getValue());
+            if (StringUtils.hasText(rule.getValue())) {
+                putUnique(out, outName, rule.getValue());
             }
             // 2) Copy from request
-            if (rule.isCopyToResponse() && StringUtils.hasText(key) && StringUtils.hasText(outName)) {
+            if (rule.isCopyToResponse() && StringUtils.hasText(key)) {
                 String val = request.getHeaders().getFirst(key);
                 if (StringUtils.hasText(val)) {
-                    response.getHeaders().add(outName, val);
+                    putUnique(out, outName, val);
                 }
             }
         }
+    }
+
+    private void putUnique(HttpHeaders headers, String name, String value) {
+        List<String> existing = headers.get(name);
+        if (existing == null || existing.isEmpty()) {
+            headers.add(name, value);
+            return;
+        }
+        if (existing.contains(value)) {
+            // already present; no-op
+            return;
+        }
+        // different value already present -> replace with the configured value to ensure single-valued header
+        headers.set(name, value);
     }
 
     /**

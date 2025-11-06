@@ -6,12 +6,12 @@ import com.spectrayan.sse.server.customize.SseEndpointCustomizer;
 import com.spectrayan.sse.server.customize.SseHeaderCustomizer;
 import com.spectrayan.sse.server.customize.SseStreamCustomizer;
 import com.spectrayan.sse.server.emitter.SseEmitter;
+import com.spectrayan.sse.server.session.SseSession;
 import com.spectrayan.sse.server.error.ErrorEvents;
 import com.spectrayan.sse.server.error.SseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.context.ApplicationEvent;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Component;
@@ -29,7 +29,6 @@ import java.util.function.Supplier;
  * but is intended for use with a functional {@code RouterFunction}.
  */
 @Component
-@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server.controller", name = "router-enabled", havingValue = "true")
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class SseEndpointHandler {
 
@@ -63,30 +62,35 @@ public class SseEndpointHandler {
         String topic = request.pathVariable("topic");
         ServerWebExchange exchange = request.exchange();
         String remote = exchange.getRequest().getRemoteAddress() != null ? exchange.getRequest().getRemoteAddress().toString() : "unknown";
-        String sessionId = java.util.UUID.randomUUID().toString();
 
-        // Publish session created event
-        try {
-            eventPublisher.publishEvent(new com.spectrayan.sse.server.events.SseSessionCreatedEvent(sessionId, topic, remote));
-        } catch (Throwable t) {
-            log.debug("Failed to publish SseSessionCreatedEvent: {}", t.toString());
-        }
+        return exchange.getSession()
+                .map(ws -> ws != null ? ws.getId() : "")
+                .filter(id -> id != null && !id.isBlank())
+                .switchIfEmpty(reactor.core.publisher.Mono.fromSupplier(() -> java.util.UUID.randomUUID().toString()))
+                .flatMap(sessionId -> {
+                    // Publish session created event
+                    try {
+                        eventPublisher.publishEvent(new com.spectrayan.sse.server.events.SseSessionCreatedEvent(sessionId, topic, remote));
+                    } catch (Throwable t) {
+                        log.debug("Failed to publish SseSessionCreatedEvent: {}", t.toString());
+                    }
 
-        // Build the core behavior supplier (same as controller)
-        Supplier<Flux<ServerSentEvent<Object>>> core = () -> buildFlux(sessionId, topic, remote, exchange);
+                    // Build the core behavior supplier (same as controller)
+                    Supplier<Flux<ServerSentEvent<Object>>> core = () -> buildFlux(sessionId, topic, remote, exchange);
 
-        // Wrap with endpoint customizers (outermost first)
-        Supplier<Flux<ServerSentEvent<Object>>> chain = core;
-        for (int i = endpointCustomizers.size() - 1; i >= 0; i--) {
-            SseEndpointCustomizer customizer = endpointCustomizers.get(i);
-            Supplier<Flux<ServerSentEvent<Object>>> next = chain;
-            chain = () -> customizer.handle(topic, exchange, next);
-        }
+                    // Wrap with endpoint customizers (outermost first)
+                    Supplier<Flux<ServerSentEvent<Object>>> chain = core;
+                    for (int i = endpointCustomizers.size() - 1; i >= 0; i--) {
+                        SseEndpointCustomizer customizer = endpointCustomizers.get(i);
+                        Supplier<Flux<ServerSentEvent<Object>>> next = chain;
+                        chain = () -> customizer.handle(topic, exchange, next);
+                    }
 
-        Flux<ServerSentEvent<Object>> flux = chain.get();
-        return ServerResponse.ok()
-                .contentType(MediaType.TEXT_EVENT_STREAM)
-                .body(flux, ServerSentEvent.class);
+                    Flux<ServerSentEvent<Object>> flux = chain.get();
+                    return ServerResponse.ok()
+                            .contentType(MediaType.TEXT_EVENT_STREAM)
+                            .body(flux, ServerSentEvent.class);
+                });
     }
 
     private Flux<ServerSentEvent<Object>> buildFlux(String sessionId, String topic, String remote, ServerWebExchange exchange) {
@@ -104,7 +108,14 @@ public class SseEndpointHandler {
         }
 
         log.info("SSE subscription requested (router): topic={} from {}", topic, remote);
-        Flux<ServerSentEvent<Object>> flux = sseEmitter.connect(topic)
+        String userAgent = request.getHeaders().getFirst("User-Agent");
+        SseSession session = SseSession.builder()
+                .sessionId(sessionId)
+                .topic(topic)
+                .remoteAddress(remote)
+                .userAgent(userAgent)
+                .build();
+        Flux<ServerSentEvent<Object>> flux = sseEmitter.connect(topic, session)
                 .doOnSubscribe(s -> {
                     log.debug("SSE stream subscribed: topic={} from {}", topic, remote);
                     try {
@@ -149,8 +160,13 @@ public class SseEndpointHandler {
                 }));
         }
 
-        // Add topic + MDC activation marker into context
-        flux = flux.contextWrite(ctx -> ctx.put(props.getMdcContextKey(), Boolean.TRUE).put("topic", topic));
+        // Add topic + session + remote address + MDC activation marker into context
+        flux = flux.contextWrite(ctx -> ctx
+                .put(props.getMdcContextKey(), Boolean.TRUE)
+                .put("topic", topic)
+                .put("sessionId", sessionId)
+                .put("remoteAddress", remote)
+        );
 
         // Apply stream customizers
         for (SseStreamCustomizer c : streamCustomizers) {
