@@ -1,12 +1,15 @@
 package com.spectrayan.sse.server.config;
 
-import com.spectrayan.sse.server.controller.SseController;
+import com.spectrayan.sse.server.controller.SseEndpointHandler;
 import com.spectrayan.sse.server.customize.SseEmitterCustomizer;
 import com.spectrayan.sse.server.customize.SseHeaderCustomizer;
 import com.spectrayan.sse.server.customize.SseStreamCustomizer;
 import com.spectrayan.sse.server.customize.SseErrorCustomizer;
+import com.spectrayan.sse.server.customize.SseEndpointCustomizer;
+import org.springframework.context.ApplicationEventPublisher;
 import com.spectrayan.sse.server.emitter.SseEmitter;
-import com.spectrayan.sse.server.error.GlobalExceptionHandler;
+import com.spectrayan.sse.server.emitter.DefaultSseEmitter;
+import com.spectrayan.sse.server.error.SseExceptionHandler;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
@@ -15,16 +18,12 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.web.server.WebFilter;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.web.reactive.config.WebFluxConfigurer;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
 import org.springframework.boot.web.embedded.netty.NettyReactiveWebServerFactory;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.reactive.CorsWebFilter;
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource;
-import com.spectrayan.sse.server.customize.SseCodecCustomizer;
 
 /**
  * Spring Boot auto-configuration for the SSE server library.
@@ -46,15 +45,17 @@ public class SseServerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SseEmitter sseEmitter(SseServerProperties properties, ObjectProvider<SseEmitterCustomizer> sinkCustomizer) {
-        return new SseEmitter(properties, sinkCustomizer);
+    public SseEmitter sseEmitter(SseServerProperties properties, ObjectProvider<SseEmitterCustomizer> sinkCustomizer,
+                                 ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks) {
+        return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks);
     }
 
     @Bean
     @ConditionalOnMissingBean
     @ConditionalOnClass(CorsWebFilter.class)
     @ConditionalOnProperty(prefix = "spectrayan.sse.server.cors", name = "enabled", havingValue = "true")
-    public CorsWebFilter sseCorsWebFilter(SseServerProperties properties) {
+    public CorsWebFilter sseCorsWebFilter(SseServerProperties properties,
+                                          org.springframework.beans.factory.ObjectProvider<SseWebFluxConfigurer> configurers) {
         var cors = properties.getCors();
         CorsConfiguration config = new CorsConfiguration();
         if (cors.getAllowedOrigins() != null && !cors.getAllowedOrigins().isEmpty()) {
@@ -76,7 +77,15 @@ public class SseServerAutoConfiguration {
             config.setMaxAge(cors.getMaxAge());
         }
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        String basePath = properties.getController() != null ? properties.getController().getBasePath() : "/sse";
+        // Allow user configurers to adjust
+        if (configurers != null) {
+            for (SseWebFluxConfigurer cfg : configurers.orderedStream().toList()) {
+                try {
+                    cfg.configureCors(source);
+                } catch (Throwable ignored) {}
+            }
+        }
+        String basePath = properties.getBasePath() != null ? properties.getBasePath() : "/sse";
         String pattern = (cors.getPathPattern() != null && !cors.getPathPattern().isBlank()) ? cors.getPathPattern() : (basePath.endsWith("/**") ? basePath : basePath + "/**");
         source.registerCorsConfiguration(pattern, config);
         return new CorsWebFilter(source);
@@ -84,8 +93,17 @@ public class SseServerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public SseHeaderHandler sseHeaderHandler(SseServerProperties properties) {
-        return new SseHeaderHandler(properties);
+    public SseHeaderHandler sseHeaderHandler(SseServerProperties properties,
+                                             org.springframework.beans.factory.ObjectProvider<SseWebFluxConfigurer> configurers) {
+        SseHeaderHandler handler = new SseHeaderHandler(properties);
+        if (configurers != null) {
+            for (SseWebFluxConfigurer cfg : configurers.orderedStream().toList()) {
+                try {
+                    cfg.configureHeaders(properties, handler);
+                } catch (Throwable ignored) {}
+            }
+        }
+        return handler;
     }
 
     @Bean
@@ -96,35 +114,47 @@ public class SseServerAutoConfiguration {
     }
 
     @Bean
-    @ConditionalOnMissingBean
-    @ConditionalOnProperty(prefix = "spectrayan.sse.server.controller", name = "router-enabled", havingValue = "false", matchIfMissing = true)
-    public SseController sseController(SseEmitter emitter,
-                                       SseHeaderHandler headerHandler,
-                                       SseServerProperties properties,
-                                       ObjectProvider<SseStreamCustomizer> streamCustomizers,
-                                       ObjectProvider<SseHeaderCustomizer> headerCustomizers) {
-        return new SseController(emitter, headerHandler, properties, streamCustomizers, headerCustomizers);
+    @ConditionalOnMissingBean(SseEndpointHandler.class)
+    public SseEndpointHandler sseEndpointHandler(SseEmitter emitter,
+                                                 SseHeaderHandler headerHandler,
+                                                 SseServerProperties properties,
+                                                 ObjectProvider<SseStreamCustomizer> streamCustomizers,
+                                                 ObjectProvider<SseHeaderCustomizer> headerCustomizers,
+                                                 ObjectProvider<SseEndpointCustomizer> endpointCustomizers,
+                                                 ApplicationEventPublisher eventPublisher) {
+        return new SseEndpointHandler(
+                emitter,
+                headerHandler,
+                properties,
+                streamCustomizers,
+                headerCustomizers,
+                endpointCustomizers,
+                eventPublisher
+        );
     }
 
     @Bean
     @ConditionalOnMissingBean(name = "sseRouterFunction")
-    @ConditionalOnProperty(prefix = "spectrayan.sse.server.controller", name = "router-enabled", havingValue = "true")
     public org.springframework.web.reactive.function.server.RouterFunction<org.springframework.web.reactive.function.server.ServerResponse> sseRouterFunction(
-            com.spectrayan.sse.server.controller.SseEndpointHandler handler,
+            SseEndpointHandler sseEndpointHandler,
             SseServerProperties properties) {
-        String basePath = properties.getController() != null ? properties.getController().getBasePath() : "/sse";
+        String basePath = properties.getBasePath() != null ? properties.getBasePath() : "/sse";
         // Normalize: ensure no trailing slash
         if (basePath.endsWith("/")) basePath = basePath.substring(0, basePath.length() - 1);
         String pattern = basePath + "/{topic}";
         var GET = org.springframework.web.reactive.function.server.RequestPredicates.GET(pattern);
-        return org.springframework.web.reactive.function.server.RouterFunctions.route(GET, handler::handle);
+        return org.springframework.web.reactive.function.server.RouterFunctions.route(GET, sseEndpointHandler::handle);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public GlobalExceptionHandler sseGlobalExceptionHandler(SseHeaderHandler headerHandler,
-                                                            ObjectProvider<SseErrorCustomizer> errorCustomizer) {
-        return new GlobalExceptionHandler(headerHandler, errorCustomizer);
+    @ConditionalOnProperty(prefix = "spectrayan.sse.server.errors", name = "enabled", havingValue = "true", matchIfMissing = true)
+    public SseExceptionHandler sseExceptionHandler(SseHeaderHandler headerHandler,
+                                                   ObjectProvider<SseErrorCustomizer> errorCustomizer,
+                                                   org.springframework.http.codec.ServerCodecConfigurer codecConfigurer,
+                                                   SseServerProperties properties,
+                                                   ObjectProvider<SseWebFluxConfigurer> configurers) {
+        return new SseExceptionHandler(headerHandler, errorCustomizer, codecConfigurer, properties, configurers);
     }
 
     @Bean
@@ -133,5 +163,12 @@ public class SseServerAutoConfiguration {
     public ReactorMdcConfiguration reactorMdcConfiguration(SseServerProperties properties, SseHeaderHandler headerHandler) {
         // This bean registers a global Reactor hook in its @PostConstruct lifecycle
         return new ReactorMdcConfiguration(properties, headerHandler);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(com.spectrayan.sse.server.topic.TopicRegistry.class)
+    public com.spectrayan.sse.server.topic.TopicRegistry sseTopicRegistry(SseEmitter emitter) {
+        // Default emitter implements TopicRegistry; expose it as a separate bean
+        return (com.spectrayan.sse.server.topic.TopicRegistry) emitter;
     }
 }

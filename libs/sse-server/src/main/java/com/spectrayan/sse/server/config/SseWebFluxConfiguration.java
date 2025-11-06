@@ -12,6 +12,7 @@ import java.util.List;
 /**
  * Additional WebFlux configuration for the SSE library:
  * - Applies all {@link SseCodecCustomizer} beans to the shared {@link ServerCodecConfigurer}.
+ * - Invokes any {@link SseWebFluxConfigurer} to further tweak codecs.
  */
 @org.springframework.context.annotation.Configuration
 @ConditionalOnClass(WebFluxConfigurer.class)
@@ -19,9 +20,12 @@ import java.util.List;
 public class SseWebFluxConfiguration implements WebFluxConfigurer {
 
     private final List<SseCodecCustomizer> codecCustomizers;
+    private final List<SseWebFluxConfigurer> configurers;
 
-    public SseWebFluxConfiguration(ObjectProvider<SseCodecCustomizer> codecCustomizers) {
+    public SseWebFluxConfiguration(ObjectProvider<SseCodecCustomizer> codecCustomizers,
+                                   ObjectProvider<SseWebFluxConfigurer> configurers) {
         this.codecCustomizers = codecCustomizers.orderedStream().toList();
+        this.configurers = configurers.orderedStream().toList();
     }
 
     @Override
@@ -31,6 +35,13 @@ public class SseWebFluxConfiguration implements WebFluxConfigurer {
                 c.customize(configurer);
             } catch (Throwable t) {
                 // best-effort; never fail app startup on customizer
+            }
+        }
+        for (SseWebFluxConfigurer cfg : configurers) {
+            try {
+                cfg.configureCodecs(configurer);
+            } catch (Throwable t) {
+                // best-effort
             }
         }
     }

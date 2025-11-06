@@ -3,19 +3,16 @@ package com.spectrayan.sse.server.emitter;
 import com.spectrayan.sse.server.config.SseServerProperties;
 import com.spectrayan.sse.server.error.EmissionRejectedException;
 import com.spectrayan.sse.server.error.InvalidTopicException;
-import com.spectrayan.sse.server.error.NoSubscribersException;
 import com.spectrayan.sse.server.error.TopicNotFoundException;
 import jakarta.annotation.PreDestroy;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 import reactor.core.publisher.SignalType;
 
-import java.time.Duration;
 import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -42,14 +39,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 @Service
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
-public class SseEmitter {
+public class AbstractSseEmitter {
 
-    private static final Logger log = LoggerFactory.getLogger(SseEmitter.class);
+    private static final Logger log = LoggerFactory.getLogger(AbstractSseEmitter.class);
 
     private final SseServerProperties properties;
     private final com.spectrayan.sse.server.customize.SseEmitterCustomizer sinkCustomizer;
 
-    public SseEmitter(SseServerProperties properties, org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseEmitterCustomizer> sinkCustomizer) {
+    public AbstractSseEmitter(SseServerProperties properties, org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseEmitterCustomizer> sinkCustomizer) {
         this.properties = properties;
         this.sinkCustomizer = sinkCustomizer != null ? sinkCustomizer.getIfAvailable() : null;
     }
@@ -344,9 +341,9 @@ public class SseEmitter {
     public void shutdown() {
         int count = topics.size();
         if (count > 0) {
-            log.info("Shutting down SseEmitter: completing {} SSE channel(s)", count);
+            log.info("Shutting down AbstractSseEmitter: completing {} SSE channel(s)", count);
         } else {
-            log.info("Shutting down SseEmitter: no active SSE channels");
+            log.info("Shutting down AbstractSseEmitter: no active SSE channels");
         }
         topics.forEach((id, ch) -> {
             try {

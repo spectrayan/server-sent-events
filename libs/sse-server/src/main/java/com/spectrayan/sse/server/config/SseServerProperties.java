@@ -25,8 +25,11 @@ public class SseServerProperties {
     // Headers mapping and response/static headers
     private List<SseHeader> headers = new ArrayList<>();
 
-    // Controller/API config
-    private Controller controller = new Controller();
+    // Base path for the SSE endpoint (functional router)
+    private String basePath = "/sse";
+
+    // Error handling
+    private Errors errors = new Errors();
 
     // Stream behavior
     private Stream stream = new Stream();
@@ -48,12 +51,12 @@ public class SseServerProperties {
     }
 
     @Data
-    public static class Controller {
-        /** Base path for the controller mapping. Example: /sse */
-        private String basePath = "/sse";
-        /** When true, expose the SSE endpoint using a functional RouterFunction instead of the controller. */
-        private boolean routerEnabled = false;
+    public static class Errors {
+        private boolean enabled = true;
+        private Scope scope = Scope.GLOBAL;
     }
+
+    public enum Scope { GLOBAL, SSE }
 
     @Data
     public static class Stream {
@@ -118,7 +121,7 @@ public class SseServerProperties {
         private Boolean allowCredentials = null;
         /** Max age for preflight cache. */
         private Duration maxAge = Duration.ofHours(1);
-        /** Optional path pattern override. If blank, will default to controller base path + "/**". */
+        /** Optional path pattern override. If blank, will default to base path + "/**". */
         private String pathPattern;
     }
 }
