@@ -58,11 +58,11 @@ export class App implements OnDestroy {
     // Update UI state
     this.status = 'connecting';
 
-    // NOTE: The sample server exposes SSE at GET http://localhost:8080/{topic}
+    // NOTE: The sample server exposes SSE at GET http://localhost:8080/sse/{topic}
     // It emits named events: "message" (string) and "notification" (object),
     // plus an internal "heartbeat" which we don't subscribe to.
     // We'll subscribe to topic "notifications" so the scheduled demo events appear.
-    const url = `http://localhost:8080/` + userId;
+    const url = `http://localhost:8080/sse/` + userId;
 
     this.sub = this.sse
       .stream<any>(url, {
