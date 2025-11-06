@@ -20,6 +20,7 @@
 
   <modules>
     <module>libs/sse-server</module>
+      <module>samples/sse-sample-server-app</module>
   </modules>
 
   <licenses>
