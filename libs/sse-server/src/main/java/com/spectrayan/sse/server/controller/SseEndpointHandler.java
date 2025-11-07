@@ -41,6 +41,7 @@ public class SseEndpointHandler {
     private final List<SseHeaderCustomizer> headerCustomizers;
     private final List<SseEndpointCustomizer> endpointCustomizers;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
+    private final com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator;
 
     public SseEndpointHandler(SseEmitter sseEmitter,
                               SseHeaderHandler headerHandler,
@@ -48,7 +49,8 @@ public class SseEndpointHandler {
                               ObjectProvider<SseStreamCustomizer> streamCustomizers,
                               ObjectProvider<SseHeaderCustomizer> headerCustomizers,
                               ObjectProvider<SseEndpointCustomizer> endpointCustomizers,
-                              org.springframework.context.ApplicationEventPublisher eventPublisher) {
+                              org.springframework.context.ApplicationEventPublisher eventPublisher,
+                              com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
         this.sseEmitter = sseEmitter;
         this.headerHandler = headerHandler;
         this.props = props;
@@ -56,6 +58,7 @@ public class SseEndpointHandler {
         this.headerCustomizers = headerCustomizers.orderedStream().toList();
         this.endpointCustomizers = endpointCustomizers.orderedStream().toList();
         this.eventPublisher = eventPublisher;
+        this.sessionIdGenerator = sessionIdGenerator;
     }
 
     public Mono<ServerResponse> handle(ServerRequest request) {
@@ -66,7 +69,7 @@ public class SseEndpointHandler {
         return exchange.getSession()
                 .map(ws -> ws != null ? ws.getId() : "")
                 .filter(id -> id != null && !id.isBlank())
-                .switchIfEmpty(reactor.core.publisher.Mono.fromSupplier(() -> java.util.UUID.randomUUID().toString()))
+                .switchIfEmpty(reactor.core.publisher.Mono.fromSupplier(() -> sessionIdGenerator != null ? sessionIdGenerator.generate(exchange, topic) : java.util.UUID.randomUUID().toString()))
                 .flatMap(sessionId -> {
                     // Publish session created event
                     try {

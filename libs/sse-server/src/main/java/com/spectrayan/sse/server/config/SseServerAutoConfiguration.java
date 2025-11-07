@@ -46,8 +46,15 @@ public class SseServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean
     public SseEmitter sseEmitter(SseServerProperties properties, ObjectProvider<SseEmitterCustomizer> sinkCustomizer,
-                                 ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks) {
-        return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks);
+                                 ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
+                                 com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
+        return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks, sessionIdGenerator);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(com.spectrayan.sse.server.customize.SessionIdGenerator.class)
+    public com.spectrayan.sse.server.customize.SessionIdGenerator sseSessionIdGenerator() {
+        return new com.spectrayan.sse.server.customize.UuidSessionIdGenerator();
     }
 
     @Bean
@@ -121,7 +128,8 @@ public class SseServerAutoConfiguration {
                                                  ObjectProvider<SseStreamCustomizer> streamCustomizers,
                                                  ObjectProvider<SseHeaderCustomizer> headerCustomizers,
                                                  ObjectProvider<SseEndpointCustomizer> endpointCustomizers,
-                                                 ApplicationEventPublisher eventPublisher) {
+                                                 ApplicationEventPublisher eventPublisher,
+                                                 com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
         return new SseEndpointHandler(
                 emitter,
                 headerHandler,
@@ -129,7 +137,8 @@ public class SseServerAutoConfiguration {
                 streamCustomizers,
                 headerCustomizers,
                 endpointCustomizers,
-                eventPublisher
+                eventPublisher,
+                sessionIdGenerator
         );
     }
 
