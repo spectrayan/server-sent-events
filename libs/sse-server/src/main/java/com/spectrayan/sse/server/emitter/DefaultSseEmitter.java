@@ -15,7 +15,8 @@ public class DefaultSseEmitter extends AbstractSseEmitter implements SseEmitter 
 
     public DefaultSseEmitter(SseServerProperties properties,
                              ObjectProvider<SseEmitterCustomizer> sinkCustomizer,
-                             ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks) {
-        super(properties, sinkCustomizer, sessionHooks);
+                             ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
+                             com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
+        super(properties, sinkCustomizer, sessionHooks, sessionIdGenerator);
     }
 }

@@ -23,11 +23,19 @@ import com.spectrayan.sse.server.session.SseSession;
  * Server-Sent Events (SSE) topic emitter.
  * <p>
  * This service manages a set of per-topic reactive sinks (one sink per topic) and exposes
- * a reactive stream (`Flux`) for clients to subscribe to via {@link #connect(String)}.
+ * reactive streams (`Flux`) for clients to subscribe to via {@link #connect(String)} or
+ * {@link #connect(String, com.spectrayan.sse.server.session.SseSession)}.
  * Producers can push arbitrary/complex payload objects to specific topics (or broadcast to all)
  * using the various {@code emit*} methods. The emitter takes care of building
  * {@link ServerSentEvent} instances so callers can send any object type without dealing
  * with SSE formatting in controllers.
+ * <p>
+ * Session id behavior:
+ * - When using {@link #connect(String)} (convenience/programmatic path), a new session id is generated
+ *   using the configured {@code SessionIdGenerator} (or a UUID fallback if none).
+ * - When using {@link #connect(String, com.spectrayan.sse.server.session.SseSession)}, the provided
+ *   {@link com.spectrayan.sse.server.session.SseSession} is used as-is and its id is not modified.
+ *   This is the path used by the HTTP endpoint handler after it has already decided on the id.
  * <p>
  * Key behaviors:
  * - Topics are created lazily the first time a client connects or an event is emitted for them.
@@ -45,94 +53,102 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
     private final SseServerProperties properties;
     private final com.spectrayan.sse.server.customize.SseEmitterCustomizer sinkCustomizer;
     private final java.util.List<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks;
+    private final com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator;
+
+    // SRP components
+    private final TopicValidator topicValidator;
+    private final SinkFactory sinkFactory;
+    private final TopicManager topicManager;
+    private final StreamComposer streamComposer;
+    private final SessionTracker sessionTracker;
+    private final EmissionService emissionService;
 
     public AbstractSseEmitter(SseServerProperties properties,
                               org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseEmitterCustomizer> sinkCustomizer,
-                              org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks) {
+                              org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
+                              com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
         this.properties = properties;
         this.sinkCustomizer = sinkCustomizer != null ? sinkCustomizer.getIfAvailable() : null;
         this.sessionHooks = sessionHooks != null ? sessionHooks.orderedStream().toList() : java.util.List.of();
+        this.sessionIdGenerator = sessionIdGenerator;
+        this.topicValidator = new TopicValidator(properties);
+        this.sinkFactory = new SinkFactory(properties, this.sinkCustomizer);
+        this.topicManager = new TopicManager(this.sinkFactory);
+        this.streamComposer = new StreamComposer(properties);
+        this.sessionTracker = new SessionTracker(this.sessionHooks, this.topicManager);
+        this.emissionService = new EmissionService();
     }
 
-    private Sinks.Many<ServerSentEvent<Object>> createSink(String topic) {
-        if (sinkCustomizer != null) {
-            @SuppressWarnings("unchecked")
-            Sinks.Many<ServerSentEvent<Object>> custom = (Sinks.Many<ServerSentEvent<Object>>) (Sinks.Many<?>) sinkCustomizer.createSink(topic, properties);
-            if (custom != null) return custom;
-        }
-        SseServerProperties.SinkType type = properties.getEmitter().getSinkType();
-        return switch (type) {
-            case REPLAY -> {
-                int size = Math.max(0, properties.getEmitter().getReplaySize());
-                if (size > 0) {
-                    yield Sinks.many().replay().limit(size);
-                } else {
-                    yield Sinks.many().replay().all();
-                }
-            }
-            case MULTICAST -> Sinks.many().multicast().directBestEffort();
-        };
-    }
 
-    /**
-     * Holder for the per-topic sink and its live subscriber count.
-     */
-    private static class SseTopic {
-        final Sinks.Many<ServerSentEvent<Object>> sink;
-        final AtomicInteger subscribers = new AtomicInteger(0);
-        final java.util.concurrent.ConcurrentHashMap<String, SseSession> sessions = new java.util.concurrent.ConcurrentHashMap<>();
-        SseTopic(Sinks.Many<ServerSentEvent<Object>> sink) { this.sink = sink; }
-    }
-
-    private final Map<String, SseTopic> topics = new ConcurrentHashMap<>();
 
     // TopicRegistry implementation
     @Override
     public java.util.Collection<String> topics() {
-        return java.util.List.copyOf(topics.keySet());
+        return topicManager.topics();
     }
 
     @Override
     public java.util.Map<String, com.spectrayan.sse.server.session.SseSession> sessions(String topic) {
-        SseTopic t = topics.get(topic);
-        if (t == null) return java.util.Collections.emptyMap();
-        return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(t.sessions));
+        return topicManager.sessions(topic);
     }
 
     @Override
     public int subscriberCount(String topic) {
-        SseTopic t = topics.get(topic);
-        return t != null ? t.subscribers.get() : 0;
+        return topicManager.subscriberCount(topic);
     }
 
     @Override
     public java.util.Map<String, Integer> topicSubscriberCounts() {
-        java.util.Map<String, Integer> m = new java.util.LinkedHashMap<>();
-        topics.forEach((id, t) -> m.put(id, t.subscribers.get()));
-        return java.util.Collections.unmodifiableMap(m);
+        return topicManager.topicSubscriberCounts();
     }
 
     /**
      * Connect to a topic and receive a live stream of {@link ServerSentEvent} items.
      * <p>
+     * This is a convenience/programmatic overload used when you don't have an existing
+     * {@link com.spectrayan.sse.server.session.SseSession}. It will create a new session internally
+     * and generate a session id via the configured {@code SessionIdGenerator} (or a UUID fallback
+     * if none is configured).
+     * <p>
      * The topic channel is created on first access. A periodic heartbeat event is merged into the
      * stream (every ~15s) to keep connections alive. When the last subscriber disconnects, the topic
      * sink is completed and removed.
+     * <p>
+     * If you already determined a session id (e.g., in an HTTP endpoint), prefer
+     * {@link #connect(String, com.spectrayan.sse.server.session.SseSession)} so the provided id is
+     * preserved.
      *
      * @param topic the topic identifier (path segment used by clients to subscribe)
      * @return a hot {@link Flux} of {@link ServerSentEvent} carrying objects previously emitted to the topic
      */
     public Flux<ServerSentEvent<Object>> connect(String topic) {
-        return connect(topic, com.spectrayan.sse.server.session.SseSession.anonymous(topic));
+        String id = sessionIdGenerator != null ? sessionIdGenerator.generate(null, topic) : java.util.UUID.randomUUID().toString();
+        com.spectrayan.sse.server.session.SseSession session = com.spectrayan.sse.server.session.SseSession.builder()
+                .sessionId(id)
+                .topic(topic)
+                .build();
+        return connect(topic, session);
     }
 
+    /**
+     * Connect to a topic using an already constructed {@link com.spectrayan.sse.server.session.SseSession}.
+     * <p>
+     * The provided session (including its {@code sessionId}) is used as-is; this method does not
+     * generate or override the id. This is the path used by the HTTP endpoint handler, which decides
+     * the id based on the WebSession id or the configured {@code SessionIdGenerator}.
+     * <p>
+     * The topic channel is created on first access. A periodic heartbeat event is merged into the
+     * stream (every ~15s) to keep connections alive. When the last subscriber disconnects, the topic
+     * sink is completed and removed.
+     *
+     * @param topic   the topic identifier
+     * @param session the session metadata to track for this subscription; its id is preserved
+     * @return a hot {@link Flux} of {@link ServerSentEvent}
+     */
     @Override
     public Flux<ServerSentEvent<Object>> connect(String topic, SseSession session) {
         validateTopicOrThrow(topic);
-        SseTopic channel = topics.computeIfAbsent(topic, id -> {
-            log.info("Creating SSE topic: {}", id);
-            return new SseTopic(createSink(id));
-        });
+        TopicChannel channel = topicManager.getOrCreate(topic);
 
         // Enforce max subscribers if configured
         int max = properties.getTopics().getMaxSubscribers();
@@ -146,53 +162,8 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
             }
 
             Flux<ServerSentEvent<Object>> sinkFlux = channel.sink.asFlux();
-
-            Flux<ServerSentEvent<Object>> heartbeat = Flux.never();
-            if (properties.getStream().isHeartbeatEnabled()) {
-                heartbeat = Flux.interval(properties.getStream().getHeartbeatInterval())
-                    .map(t -> ServerSentEvent.<Object>builder(properties.getStream().getHeartbeatData())
-                            .event(properties.getStream().getHeartbeatEventName())
-                            .build())
-                    .doOnNext(ev -> log.trace("Sending heartbeat on topic {}", topic))
-                    .takeUntilOther(sinkFlux.ignoreElements());
-            }
-
-            Flux<ServerSentEvent<Object>> merged = Flux.merge(sinkFlux, heartbeat);
-            if (properties.getStream().isConnectedEventEnabled()) {
-                ServerSentEvent<Object> connected = ServerSentEvent.<Object>builder(properties.getStream().getConnectedEventData())
-                    .event(properties.getStream().getConnectedEventName())
-                    .build();
-                merged = merged.startWith(connected);
-            }
-
-            return merged
-                    .doOnSubscribe(sub -> {
-                        int count = channel.subscribers.incrementAndGet();
-                        if (session != null) {
-                            channel.sessions.put(session.getSessionId(), session);
-                            for (var hook : sessionHooks) {
-                                try { hook.onJoin(session); } catch (Throwable t) { log.debug("SseSessionHook.onJoin failed: {}", t.toString()); }
-                            }
-                        }
-                        log.debug("Subscriber added to topic {} (now: {})", topic, count);
-                    })
-                    .doFinally(sig -> {
-                        if (session != null) {
-                            channel.sessions.remove(session.getSessionId());
-                            for (var hook : sessionHooks) {
-                                try { hook.onLeave(session, sig); } catch (Throwable t) { log.debug("SseSessionHook.onLeave failed: {}", t.toString()); }
-                            }
-                        }
-                        int left = channel.subscribers.decrementAndGet();
-                        boolean shouldCleanup = sig == SignalType.CANCEL || sig == SignalType.ON_ERROR;
-                        if (left <= 0 && shouldCleanup) {
-                            channel.sink.tryEmitComplete();
-                            topics.remove(topic);
-                            log.info("SSE topic {} completed and removed (signal: {})", topic, sig);
-                        } else {
-                            log.debug("Subscriber removed from topic {} (remaining: {}, signal: {})", topic, left, sig);
-                        }
-                    });
+            Flux<ServerSentEvent<Object>> merged = streamComposer.compose(topic, sinkFlux);
+            return sessionTracker.decorate(topic, merged, channel, session);
         });
     }
 
@@ -208,7 +179,8 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      * @param <T>     the payload type
      */
     public <T> void emitToTopic(String topicId, T payload) {
-        emitToTopic(topicId, null, payload, null);
+        validateTopicOrThrow(topicId);
+        emissionService.emitToTopic(topicManager, topicId, null, payload, null);
     }
 
     /**
@@ -220,7 +192,8 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      * @param <T>       the payload type
      */
     public <T> void emitToTopic(String topicId, String eventName, T payload) {
-        emitToTopic(topicId, eventName, payload, null);
+        validateTopicOrThrow(topicId);
+        emissionService.emitToTopic(topicManager, topicId, eventName, payload, null);
     }
 
     /**
@@ -236,20 +209,7 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      */
     public <T> void emitToTopic(String topicId, String eventName, T payload, String id) {
         validateTopicOrThrow(topicId);
-        SseTopic channel = topics.get(topicId);
-        if (channel == null) {
-            throw new TopicNotFoundException(topicId);
-        }
-        ServerSentEvent.Builder<Object> builder = ServerSentEvent.<Object>builder((Object) payload);
-        if (eventName != null) builder.event(eventName);
-        if (id != null) builder.id(id);
-        if(log.isDebugEnabled()) {
-            log.debug("Emitting to topic {} eventName={} id={} payload={}", topicId, eventName, id, describePayload(payload));
-        }
-        Sinks.EmitResult result = channel.sink.tryEmitNext(builder.build());
-        if (result.isFailure()) {
-            throw mapEmitFailure(topicId, result, eventName, id);
-        }
+        emissionService.emitToTopic(topicManager, topicId, eventName, payload, id);
     }
 
     private String describePayload(Object payload) {
@@ -266,13 +226,7 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
     }
 
     private void validateTopicOrThrow(String topic) {
-        if (topic == null || topic.isBlank()) {
-            throw new InvalidTopicException(topic, "Topic must not be null or blank");
-        }
-        String pattern = properties.getTopics().getPattern();
-        if (pattern != null && !topic.matches(pattern)) {
-            throw new InvalidTopicException(topic, "Topic contains illegal characters; allowed pattern: " + pattern);
-        }
+        topicValidator.validateOrThrow(topic);
     }
 
     private EmissionRejectedException mapEmitFailure(String topic, Sinks.EmitResult result, String eventName, String id) {
@@ -294,22 +248,7 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      * @param <T>     the payload type
      */
     public <T> void emitToAll(T payload) {
-        int count = topics.size();
-        if (count == 0) {
-            log.warn("No active topics to broadcast to; payload ignored");
-            return;
-            //throw new NoSubscribersException("No active topics/subscribers to broadcast to");
-        }
-        ServerSentEvent<Object> event = ServerSentEvent.<Object>builder((Object) payload).build();
-        if(log.isDebugEnabled()) {
-            log.debug("Broadcasting to {} topic(s) payload={}", count, describePayload(payload));
-        }
-        topics.forEach((id, channel) -> {
-            Sinks.EmitResult res = channel.sink.tryEmitNext(event);
-            if (res.isFailure()) {
-                log.warn("Broadcast emit rejected for topic {} result={}", id, res);
-            }
-        });
+        emissionService.broadcast(topicManager, payload);
     }
 
     /**
@@ -320,7 +259,7 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      * @return a collection of active topic ids
      */
     public Collection<String> currentTopics() {
-        return topics.keySet();
+        return topicManager.topics();
     }
 
     /**
@@ -386,19 +325,6 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      */
     @PreDestroy
     public void shutdown() {
-        int count = topics.size();
-        if (count > 0) {
-            log.info("Shutting down AbstractSseEmitter: completing {} SSE channel(s)", count);
-        } else {
-            log.info("Shutting down AbstractSseEmitter: no active SSE channels");
-        }
-        topics.forEach((id, ch) -> {
-            try {
-                ch.sink.tryEmitComplete();
-            } catch (Throwable t) {
-                log.warn("Error completing SSE channel for topic {}: {}", id, t.getMessage());
-            }
-        });
-        topics.clear();
+        topicManager.shutdownAll();
     }
 }
