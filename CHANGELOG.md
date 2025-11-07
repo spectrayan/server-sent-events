@@ -13,10 +13,14 @@ All notable changes to this project will be documented in this file.
   - New `spectrayan.sse.server.errors.*` section.
 - CORS support enhanced: library registers a `CorsWebFilter` (opt-in) scoped to base path; user configurers can adjust.
 - MDC bridge and header handling consolidated in `SseHeaderHandler`.
+- SSE emitter internals refactored to follow Single Responsibility Principle (no public API changes):
+  - Extracted `TopicValidator`, `SinkFactory`, `TopicChannel`, `TopicManager`, `StreamComposer`, `SessionTracker`, `EmissionService`.
+  - `AbstractSseEmitter` now orchestrates these components; behavior preserved (heartbeat, connected event, hooks, broadcast, shutdown).
+- Tests: Added unit tests for validator, emission mapping, session tracking & cleanup, and stream composition.
+- Documentation: Overhauled `libs/sse-server/README.md` to reflect router-only design and new extension points. Added Javadoc to new emitter components.
 - Sample app:
   - Added `SampleSseWebFluxConfigurer` demonstrating custom exception mapping (400 for `IllegalArgumentException`) and CORS tweaks.
   - Added `DemoErrorController` at `GET /api/demo/error` to showcase ProblemDetails mapping.
-- Documentation: Overhauled `libs/sse-server/README.md` to reflect router-only design and new extension points.
 
 #### Breaking Changes
 - Removed controller mode and nested `controller.*` properties.
