@@ -104,7 +104,7 @@ export class SseClient {
             lastEventId = (ev as any).lastEventId as string | undefined;
             try {
               const data = merged.parse<T>(String(ev.data));
-              this.zone.run(() => subscriber.next(data));
+              processEventData(data, 'message');
             } catch (e) {
               this.zone.run(() => subscriber.error(e));
             }
@@ -155,14 +155,15 @@ export class SseClient {
 
           es.onerror = onError;
 
-          // attach named events if any
+          // attach named events if any (skip default 'message' to avoid duplicate handling)
           const namedListeners: Array<{ name: string; fn: (ev: MessageEvent) => void }> = [];
-          for (const name of merged.events) {
+          const uniqueNamedEvents = Array.from(new Set(merged.events)).filter((e) => e && e !== 'message');
+          for (const name of uniqueNamedEvents) {
             const fn = (ev: MessageEvent) => {
               lastEventId = (ev as any).lastEventId as string | undefined;
               try {
                 const data = merged.parse<T>(String(ev.data));
-                this.zone.run(() => subscriber.next(data));
+                processEventData(data, name);
               } catch (e) {
                 this.zone.run(() => subscriber.error(e));
               }
@@ -230,6 +231,7 @@ export class SseClient {
       lastEventIdParamName:
         options?.lastEventIdParamName ?? this.globalConfig.lastEventIdParamName ?? 'lastEventId',
       reconnection,
+      callbacks: options?.callbacks ?? this.globalConfig.callbacks ?? DEFAULT_SSE_CLIENT_CONFIG.callbacks,
     } as Required<SseClientConfig>;
   }
 }

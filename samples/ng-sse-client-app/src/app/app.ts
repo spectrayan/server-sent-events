@@ -1,6 +1,6 @@
 import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiCallbackConfig, ApiCallbackService, SseClient } from '@spectrayan-sse/ng-sse-client';
+import { ApiCallbackConfig, SseClient } from '@spectrayan-sse/ng-sse-client';
 import { Subscription } from 'rxjs';
 
 type SseStatus = 'connecting' | 'connected' | 'disconnected';
@@ -39,7 +39,7 @@ export class App implements OnDestroy {
     timeout: 5000,
   };
 
-  constructor(private sse: SseClient, private apiCallback: ApiCallbackService) {}
+  constructor(private sse: SseClient) {}
 
   get unreadCount(): number {
     return this.notifications.filter((n) => !n.read).length;
@@ -51,20 +51,9 @@ export class App implements OnDestroy {
 
   markAsRead(n: { id: string; message: string; read: boolean }) {
     if (n.read) return;
-    // Update UI state immediately
+    // Update UI state immediately; the server-side callback (if desired) is now
+    // configured via SseClient callbacks in stream() and handled automatically.
     n.read = true;
-
-    // Trigger the configured callback to mark as read on the server
-    this.apiCallback
-      .executeCallbackWithRetry<{ id: string }>(
-        { id: n.id },
-        this.markReadCallback,
-        { enabled: true, maxRetries: 3, delayMs: 1000 }
-      )
-      .subscribe({
-        next: () => console.log('Marked notification as read on server:', n.id),
-        error: (err) => console.error('Failed to mark as read:', err),
-      });
   }
 
   private formatData(data: unknown): string {
@@ -106,9 +95,18 @@ export class App implements OnDestroy {
 
     this.sub = this.sse
       .stream<any>(url, {
-        events: ['message', 'notification'],
+        // Only include named events here; default 'message' is always handled by the client
+        events: ['notification'],
         parse: this.parse,
         reconnection: { enabled: true, maxRetries: -1, initialDelayMs: 1000, maxDelayMs: 30000, backoffMultiplier: 2, jitterRatio: 0.2 },
+        callbacks: [
+          {
+            eventType: 'notification',
+            condition: (d: any) => !!(d && typeof d === 'object' && 'id' in d),
+            apiCallback: this.markReadCallback,
+            retry: { enabled: true, maxRetries: 3, delayMs: 1000 },
+          },
+        ],
       })
       .subscribe({
         next: (data) => {
