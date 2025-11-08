@@ -9,6 +9,7 @@ import {
 import { EventSourceFactory, EventSourceLike } from './event-source.factory';
 import { Observable } from 'rxjs';
 import { computeBackoffDelay } from './backoff';
+import {ApiCallbackService} from "./api-callback.service";
 
 export interface StreamOptions<T = unknown> extends Partial<Omit<SseClientConfig, 'url' | 'parse'>> {
   /** Custom parser for the data payload */
@@ -20,6 +21,7 @@ export class SseClient {
   private readonly globalConfig: Partial<SseClientConfig>;
   private readonly zone = inject(NgZone);
   private readonly esFactory = inject(EventSourceFactory);
+  private readonly apiCallback = inject(ApiCallbackService);
 
   constructor() {
     this.globalConfig = inject(SSE_CLIENT_CONFIG, { optional: true }) ?? {};
@@ -48,6 +50,41 @@ export class SseClient {
       let closed = false;
       let retries = 0;
       let lastEventId: string | undefined;
+
+        const processEventData = (data: T, eventType?: string) => {
+            // Execute callbacks if configured
+            const callbacks = merged.callbacks || [];
+            for (const callbackConfig of callbacks) {
+                // Check if callback applies to this event type
+                if (callbackConfig.eventType && callbackConfig.eventType !== eventType) {
+                    continue;
+                }
+
+                // Check condition if specified
+                if (callbackConfig.condition && !callbackConfig.condition(data)) {
+                    continue;
+                }
+
+                // Execute the callback
+                this.zone.runOutsideAngular(() => {
+                    this.apiCallback.executeCallbackWithRetry(
+                        data,
+                        callbackConfig.apiCallback,
+                        callbackConfig.retry
+                    ).subscribe({
+                        next: (result) => {
+                            console.log('API callback executed successfully:', result);
+                        },
+                        error: (error) => {
+                            console.error('API callback execution failed:', error);
+                        }
+                    });
+                });
+            }
+
+            // Emit the event data to subscribers
+            this.zone.run(() => subscriber.next(data));
+        };
 
       const openConnection = () => {
         const connectUrl = this.buildReconnectUrl(merged.url, merged.lastEventIdParamName, lastEventId);
