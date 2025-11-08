@@ -22,6 +22,11 @@ import java.net.URI;
 public class SampleSseWebFluxConfigurer implements SseWebFluxConfigurer {
 
     private static final Logger log = LoggerFactory.getLogger(SampleSseWebFluxConfigurer.class);
+    private final AppCorsProperties corsProps;
+
+    public SampleSseWebFluxConfigurer(AppCorsProperties corsProps) {
+        this.corsProps = corsProps;
+    }
 
     @Override
     public void configureExceptionHandling(SseExceptionHandler.Registry registry) {
@@ -40,14 +45,20 @@ public class SampleSseWebFluxConfigurer implements SseWebFluxConfigurer {
 
     @Override
     public void configureCors(UrlBasedCorsConfigurationSource source) {
-        // Example: allow a local SPA to consume SSE from /sse/**
+        // Configure via properties; no hard-coded values
+        // Note: SSE CORS can be configured via the library's properties (spectrayan.sse.server.cors)
+        // To avoid duplication, we only register API CORS here.
+        registerCors(source, "/api/**", corsProps.getApi());
+    }
+
+    private static void registerCors(UrlBasedCorsConfigurationSource source, String pattern, AppCorsProperties.Mapping m) {
         CorsConfiguration cfg = new CorsConfiguration();
-        cfg.addAllowedOrigin("http://localhost:4200");
-        cfg.addAllowedMethod("GET");
-        cfg.addAllowedHeader("*");
-        cfg.setAllowCredentials(false);
-        // this registration is additive; the library will also register its own pattern
-        source.registerCorsConfiguration("/sse/**", cfg);
+        if (m.getAllowedOrigins() != null) m.getAllowedOrigins().forEach(cfg::addAllowedOrigin);
+        if (m.getAllowedMethods() != null) m.getAllowedMethods().forEach(cfg::addAllowedMethod);
+        if (m.getAllowedHeaders() != null) m.getAllowedHeaders().forEach(cfg::addAllowedHeader);
+        if (m.getAllowCredentials() != null) cfg.setAllowCredentials(m.getAllowCredentials());
+        if (m.getMaxAge() != null) cfg.setMaxAge(m.getMaxAge());
+        source.registerCorsConfiguration(pattern, cfg);
     }
 
     @Override
