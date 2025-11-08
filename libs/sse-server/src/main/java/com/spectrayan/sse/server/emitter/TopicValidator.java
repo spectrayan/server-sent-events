@@ -16,10 +16,25 @@ final class TopicValidator {
 
     private final SseServerProperties properties;
 
+    /**
+     * Create a new {@code TopicValidator}.
+     *
+     * @param properties provides validation rules (e.g., optional regex pattern)
+     */
     TopicValidator(SseServerProperties properties) {
         this.properties = properties;
     }
 
+    /**
+     * Validate a topic identifier against configured rules.
+     * <p>
+     * Rules:
+     * - Must not be {@code null} or blank.
+     * - If {@code spectrayan.sse.server.topics.pattern} is configured, the topic must match it.
+     *
+     * @param topic topic identifier to validate
+     * @throws InvalidTopicException if validation fails for any rule
+     */
     void validateOrThrow(String topic) {
         if (topic == null || topic.isBlank()) {
             throw new InvalidTopicException(topic, "Topic must not be null or blank");

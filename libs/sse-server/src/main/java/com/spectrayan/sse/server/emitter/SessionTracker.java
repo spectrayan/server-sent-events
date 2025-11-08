@@ -19,11 +19,34 @@ final class SessionTracker {
     private final List<SseSessionHook> sessionHooks;
     private final TopicManager topicManager;
 
+    /**
+     * Create a new {@code SessionTracker}.
+     *
+     * @param sessionHooks optional hooks invoked on join/leave; {@code null} treated as empty list
+     * @param topicManager manager used to remove topics when the last subscriber leaves on cancel/error
+     */
     SessionTracker(List<SseSessionHook> sessionHooks, TopicManager topicManager) {
         this.sessionHooks = sessionHooks != null ? sessionHooks : List.of();
         this.topicManager = topicManager;
     }
 
+    /**
+     * Decorate an upstream topic stream with subscription bookkeeping and cleanup.
+     * <p>
+     * Behavior:
+     * - On subscribe: increment subscriber counter; if a {@link SseSession} is provided, store it in the
+     *   channel's session map and invoke {@link SseSessionHook#onJoin(SseSession)} for each configured hook.
+     * - On termination ({@link reactor.core.publisher.SignalType}): remove the session from the map (if present),
+     *   invoke {@link SseSessionHook#onLeave(SseSession, reactor.core.publisher.SignalType)} on all hooks, decrement
+     *   the subscriber counter, and when it reaches zero after a CANCEL or ON_ERROR, complete the sink and
+     *   remove the topic via {@link TopicManager#remove(String)}.
+     *
+     * @param topic topic identifier (for logging and cleanup)
+     * @param upstream the upstream flux to decorate
+     * @param channel the per-topic channel state
+     * @param session optional session for this subscriber; may be {@code null}
+     * @return decorated flux with lifecycle side effects
+     */
     Flux<ServerSentEvent<Object>> decorate(String topic, Flux<ServerSentEvent<Object>> upstream, TopicChannel channel, SseSession session) {
         return upstream
             .doOnSubscribe(sub -> {

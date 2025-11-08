@@ -18,6 +18,14 @@ public class SseHeaderHandler {
 
     private final List<SseHeader> headers;
 
+    /**
+     * Create a new {@code SseHeaderHandler} from server properties.
+     * <p>
+     * The handler keeps an immutable snapshot of configured {@link SseHeader} rules. When properties
+     * are null or contain no header rules, the handler becomes a no-op.
+     *
+     * @param properties {@link SseServerProperties} providing configured header rules; may be {@code null}
+     */
     public SseHeaderHandler(SseServerProperties properties) {
         List<SseHeader> list = (properties != null ? properties.getHeaders() : null);
         this.headers = (list != null ? List.copyOf(list) : List.of());
@@ -86,6 +94,16 @@ public class SseHeaderHandler {
         }
     }
 
+    /**
+     * Put a header ensuring at most one value is present.
+     * <p>
+     * Behavior:
+     * - If header is absent, add {@code value}.
+     * - If the same {@code value} already exists, do nothing (idempotent).
+     * - If a different value exists, replace it with the configured {@code value} (single-valued policy).
+     *
+     * This avoids multi-valued duplicates for headers managed by this handler.
+     */
     private void putUnique(HttpHeaders headers, String name, String value) {
         List<String> existing = headers.get(name);
         if (existing == null || existing.isEmpty()) {

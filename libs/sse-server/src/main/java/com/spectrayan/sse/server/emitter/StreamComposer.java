@@ -24,10 +24,30 @@ final class StreamComposer {
 
     private final SseServerProperties properties;
 
+    /**
+     * Create a new {@code StreamComposer} bound to server properties.
+     *
+     * @param properties configuration toggling heartbeat and connected event behavior; must not be {@code null}
+     */
     StreamComposer(SseServerProperties properties) {
         this.properties = properties;
     }
 
+    /**
+     * Compose the final stream for a topic by merging the hot sink flux with optional
+     * heartbeat emissions and an optional initial "connected" event.
+     * <p>
+     * Details:
+     * - Heartbeat: when enabled via properties, emits a periodic SSE item with configured
+     *   {@code event} and {@code data} while the upstream sink is active. Heartbeats stop
+     *   as soon as the sink completes (using {@code takeUntilOther(sinkFlux.ignoreElements())}).
+     * - Connected: when enabled, prepends a single configured item at subscription time to
+     *   indicate successful connection establishment.
+     *
+     * @param topic the topic identifier used for trace logging
+     * @param sinkFlux the per-topic hot flux emitting actual SSE payloads
+     * @return a merged {@link Flux} that includes heartbeats and the optional connected event
+     */
     Flux<ServerSentEvent<Object>> compose(String topic, Flux<ServerSentEvent<Object>> sinkFlux) {
         Flux<ServerSentEvent<Object>> heartbeat = Flux.never();
         if (properties.getStream().isHeartbeatEnabled()) {

@@ -4,19 +4,19 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 /**
  * Represents a single Server-Sent Events (SSE) subscription session.
  * <p>
  * A session is created when a client subscribes to a topic and remains tracked while the
- * subscription is active. It captures useful metadata such as the generated session id,
+ * subscription is active. It captures useful metadata such as the session id,
  * the topic name, the remote address, the user agent, creation timestamp, and optional
  * arbitrary attributes supplied by the library or application hooks.
  * <p>
  * Session ids are normally provided by a pluggable {@code SessionIdGenerator} from the
- * {@code com.spectrayan.sse.server.customize} package. If a session id is not supplied,
- * a random UUID will be used as a safe fallback to preserve backward compatibility.
+ * {@code com.spectrayan.sse.server.customize} package. This class does not generate ids
+ * on its own; generation is handled upstream by components such as emitters or endpoint
+ * handlers configured with a {@code SessionIdGenerator}.
  */
 public final class SseSession {
     /**
@@ -46,7 +46,7 @@ public final class SseSession {
     private final Map<String, Object> attributes;
 
     private SseSession(Builder b) {
-        this.sessionId = b.sessionId != null ? b.sessionId : UUID.randomUUID().toString();
+        this.sessionId = b.sessionId; // Do not auto-generate here; generation is handled by SessionIdGenerator upstream
         this.topic = b.topic;
         this.remoteAddress = b.remoteAddress;
         this.userAgent = b.userAgent;
@@ -85,8 +85,9 @@ public final class SseSession {
     public static Builder builder() { return new Builder(); }
 
     /**
-     * Convenience factory that creates a minimal session for the given topic with a
-     * generated id and default values for other fields.
+     * Convenience factory that creates a minimal session for the given topic with
+     * default values for other fields. Note: no session id is generated here; callers
+     * should assign one using a configured {@code SessionIdGenerator}.
      *
      * @param topic the topic name (must not be {@code null})
      * @return a new {@link SseSession}
@@ -107,7 +108,8 @@ public final class SseSession {
         private Map<String, Object> attributes;
 
         /**
-         * Set the session id to use. If not provided, a random UUID will be generated.
+         * Set the session id to use. This class does not auto-generate ids; callers should
+         * supply an id produced by a configured {@code SessionIdGenerator}.
          */
         public Builder sessionId(String sessionId) { this.sessionId = sessionId; return this; }
         /**
