@@ -14,6 +14,21 @@ export interface SseReconnectionConfig {
   jitterRatio: number;
 }
 
+export interface SseClientHooks {
+  /** Called right before attempting to open a connection */
+  onConnect?: (url: string) => void;
+  /** Called when the EventSource connection opens successfully */
+  onOpen?: (info: { url: string; attempt: number }) => void;
+  /** Called for every received event (default 'message' and named events) */
+  onMessage?: (info: { eventType: string; data: any; rawEvent: MessageEvent }) => void;
+  /** Called when an error happens on the EventSource */
+  onError?: (info: { event: Event; attempt: number; willRetry: boolean; nextDelayMs?: number }) => void;
+  /** Called when a reconnect is scheduled */
+  onReconnectAttempt?: (info: { attempt: number; delayMs: number }) => void;
+  /** Called when the stream is closed */
+  onClose?: (info: { reason: 'unsubscribe' | 'complete' | 'retriesExceeded' }) => void;
+}
+
 export interface SseClientConfig {
   /** SSE endpoint URL */
   url: string;
@@ -27,8 +42,10 @@ export interface SseClientConfig {
   lastEventIdParamName?: string;
   /** Reconnection strategy configuration */
   reconnection?: SseReconnectionConfig;
-    /** Event-triggered callback configurations */
-    callbacks?: EventCallbackConfig[];
+  /** Event-triggered callback configurations */
+  callbacks?: EventCallbackConfig[];
+  /** Lifecycle hooks for the SSE client */
+  hooks?: SseClientHooks;
 }
 
 export interface ApiCallbackConfig<T = any> {
@@ -77,7 +94,8 @@ export const DEFAULT_SSE_CLIENT_CONFIG: Readonly<Required<Omit<SseClientConfig, 
   parse: (data: string) => JSON.parse(data),
   lastEventIdParamName: 'lastEventId',
   reconnection: DEFAULT_RECONNECTION_CONFIG,
-    callbacks: [],
+  callbacks: [],
+  hooks: {},
 };
 
 export const SSE_CLIENT_CONFIG = new InjectionToken<Partial<SseClientConfig>>(

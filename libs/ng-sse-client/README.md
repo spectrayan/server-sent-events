@@ -7,6 +7,7 @@ A small, typed, zone-aware Server‑Sent Events (SSE) client for Angular.
 - Handles default `message` and custom named events
 - Adds `?lastEventId=...` on reconnect to resume from the last received event
 - Zone-friendly: network/parsing outside Angular, emissions re-enter the zone
+- Optional lifecycle hooks (onConnect, onOpen, onMessage, onError, onReconnectAttempt, onClose)
 - Optional event-driven API callbacks with retry (e.g., mark notifications as read)
 
 ---
@@ -114,17 +115,30 @@ sse.stream<any>('http://localhost:8080/sse/user', {
 ```
 
 ## Global defaults via DI
+Use the helper `provideSseClient(...)` in your `app.config.ts`:
+```ts
+import { ApplicationConfig } from '@angular/core';
+import { provideSseClient } from '@spectrayan-sse/ng-sse-client';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideSseClient({
+      withCredentials: true,
+      lastEventIdParamName: 'lastEventId',
+      reconnection: { enabled: true, maxRetries: -1, initialDelayMs: 1000, maxDelayMs: 30000, backoffMultiplier: 2, jitterRatio: 0.2 },
+    }),
+  ],
+};
+```
+
+Alternatively, you can still provide the token directly:
 ```ts
 import { ApplicationConfig } from '@angular/core';
 import { SSE_CLIENT_CONFIG } from '@spectrayan-sse/ng-sse-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    { provide: SSE_CLIENT_CONFIG, useValue: {
-      withCredentials: true,
-      lastEventIdParamName: 'lastEventId',
-      reconnection: { enabled: true, maxRetries: -1, initialDelayMs: 1000, maxDelayMs: 30000, backoffMultiplier: 2, jitterRatio: 0.2 },
-    }},
+    { provide: SSE_CLIENT_CONFIG, useValue: { withCredentials: true } },
   ],
 };
 ```
@@ -153,6 +167,7 @@ Practical fields you will commonly use:
 - `lastEventIdParamName?: string` — query param name for lastEventId on reconnect.
 - `reconnection?: SseReconnectionConfig`
 - `callbacks?: EventCallbackConfig[]` — see next section.
+- `hooks?: SseClientHooks` — lifecycle hooks for connection and events.
 
 ### Event callbacks (optional)
 You can trigger HTTP calls when events arrive — useful for acknowledgement flows, analytics, etc.
@@ -183,6 +198,51 @@ Behavior:
 - The HTTP request is executed via `ApiCallbackService` outside Angular zone.
 - If `retry.enabled`, failed requests will be retried up to `maxRetries` with fixed delay `delayMs`.
 - Callback failures are logged and do not error the SSE stream.
+
+### Lifecycle hooks (optional)
+You can observe connection lifecycle events via hooks, either globally (DI) or per stream.
+
+Types:
+```ts
+export interface SseClientHooks {
+  onConnect?: (url: string) => void;
+  onOpen?: (info: { url: string; attempt: number }) => void;
+  onMessage?: (info: { eventType: string; data: any; rawEvent: MessageEvent }) => void;
+  onError?: (info: { event: Event; attempt: number; willRetry: boolean; nextDelayMs?: number }) => void;
+  onReconnectAttempt?: (info: { attempt: number; delayMs: number }) => void;
+  onClose?: (info: { reason: 'unsubscribe' | 'complete' | 'retriesExceeded' }) => void;
+}
+```
+
+Global hooks via DI:
+```ts
+import { ApplicationConfig } from '@angular/core';
+import { SSE_CLIENT_CONFIG, SseClientHooks } from '@spectrayan-sse/ng-sse-client';
+
+const hooks: SseClientHooks = {
+  onConnect: (url) => console.log('[SSE] connecting to', url),
+  onOpen: ({ attempt }) => console.log('[SSE] open after attempts:', attempt),
+  onMessage: ({ eventType }) => console.log('[SSE] event', eventType),
+  onError: ({ willRetry, nextDelayMs }) => console.warn('[SSE] error, willRetry=', willRetry, 'delay=', nextDelayMs),
+  onReconnectAttempt: ({ attempt, delayMs }) => console.log('[SSE] reconnect attempt', attempt, 'after', delayMs, 'ms'),
+  onClose: ({ reason }) => console.log('[SSE] closed because', reason),
+};
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    { provide: SSE_CLIENT_CONFIG, useValue: { hooks }},
+  ],
+};
+```
+
+Per-call overrides:
+```ts
+sse.stream<any>('http://localhost:8080/sse/user', {
+  hooks: {
+    onMessage: ({ data }) => console.log('stream got', data),
+  },
+});
+```
 
 ### Reconnection strategy
 `SseReconnectionConfig` controls exponential backoff and jitter used when the underlying `EventSource` errors:
