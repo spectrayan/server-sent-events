@@ -6,6 +6,8 @@ import com.spectrayan.sse.server.customize.SseHeaderCustomizer;
 import com.spectrayan.sse.server.customize.SseStreamCustomizer;
 import com.spectrayan.sse.server.customize.SseErrorCustomizer;
 import com.spectrayan.sse.server.customize.SseEndpointCustomizer;
+import com.spectrayan.sse.server.template.*;
+import com.spectrayan.sse.server.template.impl.*;
 import org.springframework.context.ApplicationEventPublisher;
 import com.spectrayan.sse.server.emitter.SseEmitter;
 import com.spectrayan.sse.server.emitter.DefaultSseEmitter;
@@ -49,6 +51,75 @@ public class SseServerAutoConfiguration {
                                  ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
                                  com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
         return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks, sessionIdGenerator);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(EventSerializer.class)
+    public EventSerializer sseEventSerializer() { return new DefaultEventSerializer(); }
+
+    @Bean
+    @ConditionalOnMissingBean(ClientFilter.class)
+    public ClientFilter sseClientFilter() { return new AllowAllClientFilter(); }
+
+    @Bean
+    @ConditionalOnMissingBean(ReconnectPolicy.class)
+    public ReconnectPolicy sseReconnectPolicy(SseServerProperties properties) { return new DefaultReconnectPolicy(properties); }
+
+    @Bean
+    @ConditionalOnMissingBean(ErrorMapper.class)
+    public ErrorMapper sseErrorMapper() { return new DefaultErrorMapper(); }
+
+    @Bean
+    @ConditionalOnMissingBean(HeartbeatPolicy.class)
+    public HeartbeatPolicy sseHeartbeatPolicy(SseServerProperties properties, EventSerializer serializer) {
+        return new DefaultHeartbeatPolicy(properties, serializer);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(ConnectionRegistry.class)
+    public ConnectionRegistry sseConnectionRegistry(com.spectrayan.sse.server.topic.TopicRegistry topicRegistry) {
+        return new TopicConnectionRegistry(topicRegistry);
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(SseTemplateBuilder.class)
+    public SseTemplateBuilder sseTemplateBuilder(
+            SseEmitter emitter,
+            SseHeaderHandler headerHandler,
+            SseServerProperties properties,
+            ObjectProvider<SseStreamCustomizer> streamCustomizers,
+            ObjectProvider<SseHeaderCustomizer> headerCustomizers,
+            ObjectProvider<SseEndpointCustomizer> endpointCustomizers,
+            ApplicationEventPublisher eventPublisher,
+            com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator,
+            EventSerializer serializer,
+            ClientFilter clientFilter,
+            ReconnectPolicy reconnectPolicy,
+            HeartbeatPolicy heartbeatPolicy,
+            ErrorMapper errorMapper,
+            ConnectionRegistry connectionRegistry) {
+        return new DefaultSseTemplateBuilder(
+                emitter,
+                headerHandler,
+                properties,
+                streamCustomizers,
+                headerCustomizers,
+                endpointCustomizers,
+                eventPublisher,
+                sessionIdGenerator,
+                serializer,
+                clientFilter,
+                reconnectPolicy,
+                heartbeatPolicy,
+                errorMapper,
+                connectionRegistry
+        );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(SseTemplate.class)
+    public SseTemplate sseTemplate(SseTemplateBuilder builder) {
+        return builder.build();
     }
 
     @Bean
