@@ -16,7 +16,7 @@
 
   <name>spectrayan-sse-parent</name>
   <description>Parent POM for Spectrayan SSE project</description>
-  <url>https://gitlab.com/spectrayan/server-sent-events</url>
+  <url>https://github.com/spectrayan/server-sent-events</url>
 
   <modules>
     <module>libs/sse-server</module>
@@ -32,10 +32,10 @@
   </licenses>
 
   <scm>
-    <connection>scm:git:https://gitlab.com/spectrayan/server-sent-events.git</connection>
-    <developerConnection>scm:git:ssh://git@gitlab.com/spectrayan/server-sent-events.git</developerConnection>
+    <connection>scm:git:https://github.com/spectrayan/server-sent-events.git</connection>
+    <developerConnection>scm:git:ssh://git@github.com/spectrayan/server-sent-events.git</developerConnection>
     <tag>1.0.0-M1</tag>
-    <url>https://gitlab.com/spectrayan/server-sent-events</url>
+    <url>https://github.com/spectrayan/server-sent-events</url>
   </scm>
 
   <properties>
