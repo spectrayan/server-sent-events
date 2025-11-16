@@ -66,10 +66,194 @@ The Makefile mirrors the GitHub Actions workflow (`.github/workflows/libs-releas
 Each sample includes its own README with run instructions.
 
 ## Releasing (maintainers)
-CI publishes on annotated tags `v*`:
-- npm (Angular): built artifact at `dist/libs/ng-sse-client`
-- Maven Central (Java): `libs/sse-server` with `-P release`
-Local guarded commands exist: `make publish-npm`, `make publish-maven` (require credentials)
+
+### Versioning Strategy
+
+We follow a Spring-inspired versioning lifecycle for the Java libraries (`libs/sse-server`):
+
+1. **SNAPSHOT** (`1.0.0-SNAPSHOT`)  
+   - Active development version  
+   - Published to [OSSRH Snapshots](https://s01.oss.sonatype.org/content/repositories/snapshots/)  
+   - Can be overwritten multiple times  
+   - Use profile: `-P snapshot`
+
+2. **Milestones** (`1.0.0-M1`, `1.0.0-M2`, ...)  
+   - Early preview releases  
+   - Immutable once published  
+   - Not production-ready  
+   - Published to Maven Central via Central Publishing
+
+3. **Release Candidates** (`1.0.0-RC1`, `1.0.0-RC2`, ...)  
+   - Near-final, feature-complete  
+   - Only critical fixes expected  
+   - Published to Maven Central via Central Publishing
+
+4. **GA/Release** (`1.0.0`)  
+   - Production-ready, stable release  
+   - Published to Maven Central via Central Publishing  
+   - Use profile: `-P release`
+
+Angular packages (`ng-sse-client`) follow standard npm semantic versioning and are published to npm on Git tags.
+
+---
+
+### Prerequisites for Releasing
+
+This section documents how to publish the Java library (`libs/sse-server`) to OSSRH Snapshots and Maven Central using the Maven Release Plugin + Central Publishing, and what’s required beforehand.
+
+#### 1) GPG key (required for Maven Central)
+
+Maven Central requires artifacts to be signed.
+
+- Install GnuPG (gpg) and generate a key pair (use the same name/email as your Git identity):
+  ```bash
+  gpg --full-generate-key
+  # Choose: RSA and RSA (default), 4096 bits, non-expiring (or set an expiry), add passphrase
+  ```
+  List your secret key ID (last 16 hex chars):
+  ```bash
+  gpg --list-secret-keys --keyid-format=long
+  # Example: sec   rsa4096/ABCDEF1234567890 2025-01-01
+  ```
+- Export and back up your public key (optional but recommended):
+  ```bash
+  gpg --armor --export ABCDEF1234567890 > public.key.asc
+  ```
+
+Environment variable used by the build:
+- `GPG_PASSPHRASE` — your key’s passphrase (required when signing in headless CI and locally due to `--pinentry-mode loopback`).
+
+You may also need to configure `~/.gnupg/gpg-agent.conf` with `allow-loopback-pinentry` and restart the agent:
+```bash
+echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
+gpgconf --kill gpg-agent
+```
+
+#### 2) Maven settings.xml (servers + GPG)
+
+Create/update `~/.m2/settings.xml` with the servers used by this repo:
+
+```xml
+<settings>
+  <servers>
+    <!-- Sonatype Central Publishing (token credentials) -->
+    <server>
+      <id>central</id>
+      <username>${env.CENTRAL_USERNAME}</username>
+      <password>${env.CENTRAL_PASSWORD}</password>
+    </server>
+
+    <!-- OSSRH Snapshots repository -->
+    <server>
+      <id>ossrh-snapshots</id>
+      <username>${env.OSSRH_USERNAME}</username>
+      <password>${env.OSSRH_PASSWORD}</password>
+    </server>
+  </servers>
+
+  <profiles>
+    <profile>
+      <id>gpg</id>
+      <properties>
+        <!-- Optional: if you maintain multiple keys, set signing key id explicitly -->
+        <!-- <gpg.keyname>ABCDEF1234567890</gpg.keyname> -->
+        <gpg.passphrase>${env.GPG_PASSPHRASE}</gpg.passphrase>
+      </properties>
+    </profile>
+  </profiles>
+
+  <activeProfiles>
+    <activeProfile>gpg</activeProfile>
+  </activeProfiles>
+</settings>
+```
+
+Required environment variables (export in your shell or configure in CI):
+- `GPG_PASSPHRASE`
+- `CENTRAL_USERNAME`, `CENTRAL_PASSWORD` (Sonatype Central Publishing token credentials)
+- `OSSRH_USERNAME`, `OSSRH_PASSWORD` (OSSRH account for snapshots)
+
+#### 3) Git and build hygiene
+- Ensure a clean working tree (no uncommitted changes).
+- Ensure you are on `main` and up to date with `origin/main`.
+- Java 21 and Maven 3.9+ installed.
+
+---
+
+### Maven commands (Java library)
+
+The parent POM is configured with:
+- `maven-release-plugin` — to manage versioning, tagging, and performing the release
+- `central-publishing-maven-plugin` — to publish to Maven Central
+- GPG signing during `deploy` phase
+
+General rules:
+- Always pass the appropriate profile with `-P` to select the target channel.
+- Set both the release version and the next development version explicitly.
+
+#### A) Publish a SNAPSHOT (OSSRH Snapshots)
+Use for ongoing development between milestones/RCs.
+```bash
+mvn -P snapshot -DskipTests=false clean deploy
+```
+
+#### B) Milestone release (e.g., 1.0.0-M1)
+```bash
+mvn -P milestone \
+    release:prepare \
+    release:perform \
+    -DreleaseVersion=1.0.0-M1 \
+    -DdevelopmentVersion=1.0.1-SNAPSHOT
+```
+
+#### C) Release Candidate (e.g., 1.0.0-RC1)
+```bash
+mvn -P rc \
+    release:prepare \
+    release:perform \
+    -DreleaseVersion=1.0.0-RC1 \
+    -DdevelopmentVersion=1.0.1-SNAPSHOT
+```
+
+#### D) GA / Final release (e.g., 1.0.0)
+```bash
+mvn -P release \
+    release:prepare \
+    release:perform \
+    -DreleaseVersion=1.0.0 \
+    -DdevelopmentVersion=1.0.1-SNAPSHOT
+```
+
+Tips:
+- Dry run without pushing tags/commits:
+  ```bash
+  mvn -DdryRun=true -P milestone release:prepare
+  ```
+- If `release:prepare` fails, roll back changes:
+  ```bash
+  mvn release:rollback
+  git reset --hard
+  git clean -fd
+  ```
+
+After `release:perform`, Central Publishing may require a manual review/approve step depending on your account settings. Check Sonatype Central portal if the release is not visible after a few minutes.
+
+---
+
+### npm package (Angular client)
+
+Publishing the Angular library (`libs/ng-sse-client`) is orchestrated by Nx and npm when a Git tag matching the npm version is created. For a manual publish (maintainers only):
+
+```bash
+# Ensure you are logged in to npm with publish rights
+npm whoami
+
+# Build the library
+npm run build ng-sse-client
+
+# From the built dist directory, publish
+(cd dist/libs/ng-sse-client && npm publish --access public)
+```
 
 ## Contributing & support
 - Please read `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`
