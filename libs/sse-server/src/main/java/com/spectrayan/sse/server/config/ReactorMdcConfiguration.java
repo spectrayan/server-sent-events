@@ -16,7 +16,7 @@ import java.util.Set;
 /**
  * Registers a global Reactor operator hook that bridges values from Reactor Context into SLF4J MDC
  * for every reactive signal. This centralizes MDC handling so individual components (like
- * SseEmitter) don't need to manually copy values.
+ * AbstractSseEmitter) don't need to manually copy values.
  *
  * Scoping: the bridge only activates for reactive chains that include a context marker key
  * (see {@link SseServerProperties} property `mdcContextKey`). This ensures host applications using
@@ -39,8 +39,10 @@ public class ReactorMdcConfiguration {
     public ReactorMdcConfiguration(SseServerProperties properties, SseHeaderHandler headerHandler) {
         this.enabled = properties == null || properties.isMdcBridgeEnabled();
         this.contextMarkerKey = (properties != null ? properties.getMdcContextKey() : "sseMdc");
-        // Include topic
-        //mdcKeys.add("topic");
+        // Include common SSE keys
+        mdcKeys.add("topic");
+        mdcKeys.add("sessionId");
+        mdcKeys.add("remoteAddress");
         // Add configured MDC keys from handler
         if (headerHandler != null) {
             mdcKeys.addAll(headerHandler.getMdcKeys());

@@ -1,321 +1,114 @@
 package com.spectrayan.sse.server.emitter;
 
-import com.spectrayan.sse.server.config.SseServerProperties;
-import com.spectrayan.sse.server.error.EmissionRejectedException;
-import com.spectrayan.sse.server.error.InvalidTopicException;
-import com.spectrayan.sse.server.error.NoSubscribersException;
-import com.spectrayan.sse.server.error.TopicNotFoundException;
-import jakarta.annotation.PreDestroy;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
+import com.spectrayan.sse.server.session.SseSession;
 import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Sinks;
-import reactor.core.publisher.SignalType;
 
-import java.time.Duration;
 import java.util.Collection;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Server-Sent Events (SSE) topic emitter.
+ * Public API for Server‑Sent Events (SSE) topics: connecting subscribers and emitting events.
  * <p>
- * This service manages a set of per-topic reactive sinks (one sink per topic) and exposes
- * a reactive stream (`Flux`) for clients to subscribe to via {@link #connect(String)}.
- * Producers can push arbitrary/complex payload objects to specific topics (or broadcast to all)
- * using the various {@code emit*} methods. The emitter takes care of building
- * {@link ServerSentEvent} instances so callers can send any object type without dealing
- * with SSE formatting in controllers.
+ * Concepts:
+ * - Topic: a logical channel identified by a string (e.g., path variable). Each topic has a hot sink.
+ * - Subscriber connection: a {@link Flux} of {@link ServerSentEvent} that remains active until
+ *   cancelled or the topic completes.
+ * - Emission: pushing an event (with optional {@code event} and {@code id} fields) into one topic or all topics.
  * <p>
- * Key behaviors:
- * - Topics are created lazily the first time a client connects or an event is emitted for them.
- * - A lightweight heartbeat event with {@code event="heartbeat"} and data {@code "::heartbeat::"}
- *   is merged into each topic stream every 15 seconds while the stream is active, helping proxies
- *   and clients keep the connection alive.
- * - Topics remain active in memory even if the last subscriber disconnects. The server keeps
- *   connections/topics alive and will only complete and remove a topic when a client cancels the
- *   subscription, an error occurs, or the application terminates (graceful shutdown).
+ * Implementations are expected to be thread‑safe.
  */
-@Service
-@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
-public class SseEmitter {
-
-    private static final Logger log = LoggerFactory.getLogger(SseEmitter.class);
-
-    private final SseServerProperties properties;
-
-    public SseEmitter(SseServerProperties properties) {
-        this.properties = properties;
-    }
-
-    private static final String TOPIC_PATTERN = "^[A-Za-z0-9._-]+$";
+public interface SseEmitter {
 
     /**
-     * Holder for the per-topic sink and its live subscriber count.
-     */
-    private static class SseTopic {
-        final Sinks.Many<ServerSentEvent<Object>> sink = Sinks.many().multicast().directBestEffort();
-        final AtomicInteger subscribers = new AtomicInteger(0);
-    }
-
-    private final Map<String, SseTopic> topics = new ConcurrentHashMap<>();
-
-    /**
-     * Connect to a topic and receive a live stream of {@link ServerSentEvent} items.
+     * Connect to a topic and receive the stream of events.
      * <p>
-     * The topic channel is created on first access. A periodic heartbeat event is merged into the
-     * stream (every ~15s) to keep connections alive. When the last subscriber disconnects, the topic
-     * sink is completed and removed.
+     * This variant does not provide session metadata. Implementations should still admit the
+     * subscription and keep internal counts.
      *
-     * @param topic the topic identifier (path segment used by clients to subscribe)
-     * @return a hot {@link Flux} of {@link ServerSentEvent} carrying objects previously emitted to the topic
+     * @param topic the topic identifier to subscribe to (must not be null/blank)
+     * @return a hot {@link Flux} that emits SSEs for the specified topic; completes when the topic is removed
      */
-    public Flux<ServerSentEvent<Object>> connect(String topic) {
-        validateTopicOrThrow(topic);
-        SseTopic channel = topics.computeIfAbsent(topic, id -> {
-            log.info("Creating SSE topic: {}", id);
-            return new SseTopic();
-        });
-
-        Flux<ServerSentEvent<Object>> sinkFlux = channel.sink.asFlux();
-        // Heartbeat tied to lifecycle of the sink so it cancels when the sink completes
-        Flux<ServerSentEvent<Object>> heartbeat = Flux.interval(Duration.ofSeconds(15))
-                .map(t -> ServerSentEvent.<Object>builder("::heartbeat::")
-                        .event("heartbeat")
-                        .build())
-                .doOnNext(ev -> log.trace("Sending heartbeat on topic {}", topic))
-                .takeUntilOther(sinkFlux.ignoreElements());
-
-        ServerSentEvent<Object> connected = ServerSentEvent.<Object>builder("connected")
-                .event("connected")
-                .build();
-        return Flux.merge(sinkFlux, heartbeat)
-                .startWith(connected)
-                .doOnSubscribe(sub -> {
-                    int count = channel.subscribers.incrementAndGet();
-                    log.debug("Subscriber added to topic {} (now: {})", topic, count);
-                })
-                .doFinally(sig -> {
-                    int left = channel.subscribers.decrementAndGet();
-                    boolean shouldCleanup = sig == SignalType.CANCEL || sig == SignalType.ON_ERROR;
-                    if (left <= 0 && shouldCleanup) {
-                        // Only complete and remove the topic when the stream ends due to client cancel or error.
-                        // Do NOT complete after normal emission; keep topic available for future subscribers.
-                        channel.sink.tryEmitComplete();
-                        topics.remove(topic);
-                        log.info("SSE topic {} completed and removed (signal: {})", topic, sig);
-                    } else {
-                        log.debug("Subscriber removed from topic {} (remaining: {}, signal: {})", topic, left, sig);
-                    }
-                });
-    }
+    Flux<ServerSentEvent<Object>> connect(String topic);
 
     /**
-     * Emit a payload to a specific topic.
-     * <p>
-     * If the topic does not exist or has no active subscribers, the payload is ignored.
-     * The payload can be any serializable object; it will be wrapped into a {@link ServerSentEvent}
-     * without an explicit event name or id.
+     * Connect to a topic with an associated {@link SseSession} carrying client metadata.
+     * The session may be recorded in per-topic session maps and used by hooks.
      *
-     * @param topicId the target topic id
-     * @param payload the payload object to send (any type supported by your HTTP message converters)
-     * @param <T>     the payload type
+     * @param topic the topic identifier to subscribe to
+     * @param session optional session metadata describing the subscriber; may be {@code null}
+     * @return a hot {@link Flux} of SSEs for the topic
      */
-    public <T> void emitToTopic(String topicId, T payload) {
-        emitToTopic(topicId, null, payload, null);
-    }
+    Flux<ServerSentEvent<Object>> connect(String topic, SseSession session);
 
     /**
-     * Emit a payload with a custom SSE event name to a specific topic.
+     * Emit a data-only SSE to a specific topic. Equivalent to {@link #emit(String, Object)}.
      *
-     * @param topicId   the target topic id
-     * @param eventName the SSE event name to set (e.g. "orderCreated"); may be {@code null}
-     * @param payload   the payload object to send
-     * @param <T>       the payload type
+     * @param topicId topic to emit to
+     * @param payload payload to serialize into {@code data}
+     * @throws com.spectrayan.sse.server.error.TopicNotFoundException if the topic does not exist yet
+     * @throws com.spectrayan.sse.server.error.EmissionRejectedException if Reactor sink rejects the signal
      */
-    public <T> void emitToTopic(String topicId, String eventName, T payload) {
-        emitToTopic(topicId, eventName, payload, null);
-    }
+    <T> void emitToTopic(String topicId, T payload);
 
     /**
-     * Emit a payload with a custom SSE event name and id to a specific topic.
-     * <p>
-     * If the topic channel does not exist, nothing happens.
+     * Emit to a specific topic with an explicit {@code event} name.
      *
-     * @param topicId   the target topic id
-     * @param eventName the SSE event name to set; may be {@code null}
-     * @param payload   the payload object to send
-     * @param id        optional SSE id (used by clients for reconnection via Last-Event-ID); may be {@code null}
-     * @param <T>       the payload type
+     * @param topicId topic to emit to
+     * @param eventName the SSE {@code event} name (may be {@code null})
+     * @param payload payload to send
+     * @throws com.spectrayan.sse.server.error.TopicNotFoundException if the topic is unknown
+     * @throws com.spectrayan.sse.server.error.EmissionRejectedException if the sink rejects the emission
      */
-    public <T> void emitToTopic(String topicId, String eventName, T payload, String id) {
-        validateTopicOrThrow(topicId);
-        SseTopic channel = topics.get(topicId);
-        if (channel == null) {
-            throw new TopicNotFoundException(topicId);
-        }
-        ServerSentEvent.Builder<Object> builder = ServerSentEvent.<Object>builder((Object) payload);
-        if (eventName != null) builder.event(eventName);
-        if (id != null) builder.id(id);
-        if(log.isDebugEnabled()) {
-            log.debug("Emitting to topic {} eventName={} id={} payload={}", topicId, eventName, id, describePayload(payload));
-        }
-        Sinks.EmitResult result = channel.sink.tryEmitNext(builder.build());
-        if (result.isFailure()) {
-            throw mapEmitFailure(topicId, result, eventName, id);
-        }
-    }
-
-    private String describePayload(Object payload) {
-        if (payload == null) return "null";
-        String type = payload.getClass().getSimpleName();
-        int hash = System.identityHashCode(payload);
-        return switch (payload) {
-            case CharSequence cs -> type + "[len=" + cs.length() + "]#" + hash;
-            case byte[] bytes -> type + "[len=" + bytes.length + "]#" + hash;
-            case Collection<?> col -> type + "[size=" + col.size() + "]#" + hash;
-            case Map<?, ?> map -> type + "[size=" + map.size() + "]#" + hash;
-            default -> type + "#" + hash;
-        };
-    }
-
-    private void validateTopicOrThrow(String topic) {
-        if (topic == null || topic.isBlank()) {
-            throw new InvalidTopicException(topic, "Topic must not be null or blank");
-        }
-        if (!topic.matches(TOPIC_PATTERN)) {
-            throw new InvalidTopicException(topic, "Topic contains illegal characters; allowed: " + TOPIC_PATTERN);
-        }
-    }
-
-    private EmissionRejectedException mapEmitFailure(String topic, Sinks.EmitResult result, String eventName, String id) {
-        String safeEventName = eventName != null ? eventName : "";
-        String safeId = id != null ? id : "";
-        String emitResultName = (result != null) ? result.name() : "NULL";
-        log.warn("Failed to emit to topic {} result={} eventName={} id={}", topic, emitResultName, safeEventName, safeId);
-        return new EmissionRejectedException(topic, emitResultName, Map.of(
-                "emitResult", emitResultName,
-                "eventName", safeEventName,
-                "id", safeId
-        ));
-    }
+    <T> void emitToTopic(String topicId, String eventName, T payload);
 
     /**
-     * Broadcast a payload to all currently active topics.
+     * Emit to a specific topic with {@code event} and {@code id} fields.
      *
-     * @param payload the payload object to send to every topic
-     * @param <T>     the payload type
+     * @param topicId topic to emit to
+     * @param eventName event name (nullable)
+     * @param payload payload to send
+     * @param id SSE {@code id} to set (nullable)
+     * @throws com.spectrayan.sse.server.error.TopicNotFoundException if the topic is unknown
+     * @throws com.spectrayan.sse.server.error.EmissionRejectedException if the sink rejects the emission
      */
-    public <T> void emitToAll(T payload) {
-        int count = topics.size();
-        if (count == 0) {
-            log.warn("No active topics to broadcast to; payload ignored");
-            return;
-            //throw new NoSubscribersException("No active topics/subscribers to broadcast to");
-        }
-        ServerSentEvent<Object> event = ServerSentEvent.<Object>builder((Object) payload).build();
-        if(log.isDebugEnabled()) {
-            log.debug("Broadcasting to {} topic(s) payload={}", count, describePayload(payload));
-        }
-        topics.forEach((id, channel) -> {
-            Sinks.EmitResult res = channel.sink.tryEmitNext(event);
-            if (res.isFailure()) {
-                log.warn("Broadcast emit rejected for topic {} result={}", id, res);
-            }
-        });
-    }
+    <T> void emitToTopic(String topicId, String eventName, T payload, String id);
 
     /**
-     * Get the identifiers of topics that currently have an active channel in memory.
-     * <p>
-     * Note: this is a snapshot view of the backing map keys and may change immediately after return.
+     * Broadcast a data-only event to all currently active topics. Best‑effort: topics that
+     * reject the signal are logged and skipped; the method does not fail for other topics.
      *
-     * @return a collection of active topic ids
+     * @param payload payload to send to all topics
      */
-    public Collection<String> currentTopics() {
-        return topics.keySet();
-    }
+    <T> void emitToAll(T payload);
 
     /**
-     * Convenience alias: emit a payload to a topic.
-     * <p>
-     * Equivalent to {@link #emitToTopic(String, Object)}.
-     *
-     * @param topicId the target topic id
-     * @param payload the payload object to send
-     * @param <T>     the payload type
+     * Return the identifiers of currently active topics.
      */
-    public <T> void emit(String topicId, T payload) {
-        emitToTopic(topicId, payload);
-    }
+    Collection<String> currentTopics();
 
     /**
-     * Convenience alias: emit a payload with event name to a topic.
-     * <p>
-     * Equivalent to {@link #emitToTopic(String, String, Object)}.
-     *
-     * @param topicId   the target topic id
-     * @param eventName the SSE event name
-     * @param payload   the payload object to send
-     * @param <T>       the payload type
+     * Synonym for {@link #emitToTopic(String, Object)}.
      */
-    public <T> void emit(String topicId, String eventName, T payload) {
-        emitToTopic(topicId, eventName, payload);
-    }
+    <T> void emit(String topicId, T payload);
 
     /**
-     * Convenience alias: emit a payload with event name and id to a topic.
-     * <p>
-     * Equivalent to {@link #emitToTopic(String, String, Object, String)}.
-     *
-     * @param topicId   the target topic id
-     * @param eventName the SSE event name
-     * @param payload   the payload object to send
-     * @param id        optional SSE id
-     * @param <T>       the payload type
+     * Synonym for {@link #emitToTopic(String, String, Object)}.
      */
-    public <T> void emit(String topicId, String eventName, T payload, String id) {
-        emitToTopic(topicId, eventName, payload, id);
-    }
+    <T> void emit(String topicId, String eventName, T payload);
 
     /**
-     * Broadcast alias: emit to all connected topics.
-     * <p>
-     * Equivalent to {@link #emitToAll(Object)}.
-     *
-     * @param payload the payload object to broadcast to all topics
-     * @param <T>     the payload type
+     * Synonym for {@link #emitToTopic(String, String, Object, String)}.
      */
-    public <T> void emit(T payload) {
-        emitToAll(payload);
-    }
+    <T> void emit(String topicId, String eventName, T payload, String id);
 
     /**
-     * Gracefully close all active SSE channels on application shutdown to avoid
-     * blocking graceful shutdown with in-flight requests.
-     * <p>
-     * This completes each sink and clears the topic registry. Any subsequent attempt to connect
-     * will recreate topics on demand.
+     * Broadcast to all topics. Synonym for {@link #emitToAll(Object)}.
      */
-    @PreDestroy
-    public void shutdown() {
-        int count = topics.size();
-        if (count > 0) {
-            log.info("Shutting down SseEmitter: completing {} SSE channel(s)", count);
-        } else {
-            log.info("Shutting down SseEmitter: no active SSE channels");
-        }
-        topics.forEach((id, ch) -> {
-            try {
-                ch.sink.tryEmitComplete();
-            } catch (Throwable t) {
-                log.warn("Error completing SSE channel for topic {}: {}", id, t.getMessage());
-            }
-        });
-        topics.clear();
-    }
+    <T> void emit(T payload);
+
+    /**
+     * Shut down the emitter, completing all topic sinks and releasing resources.
+     * After shutdown, further emissions are no-ops or rejected depending on implementation.
+     */
+    void shutdown();
 }

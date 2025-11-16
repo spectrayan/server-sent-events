@@ -11,6 +11,18 @@ spectrayan:
       enabled: true
       mdc-bridge-enabled: true
       mdc-context-key: sseMdc
+      base-path: /sse
+      errors:
+        enabled: true
+        scope: SSE
+      cors:
+        enabled: true
+        allowed-origins:
+          - http://localhost:4200
+        allowed-methods:
+          - GET
+        allowed-headers:
+          - "*"
       headers:
         - key: X-Request-Id
           mdc-key: requestId
@@ -22,9 +34,29 @@ spectrayan:
           include-in-problem: false
         - key: X-App
           value: sse-sample
-        - key: Access-Control-Allow-Origin
-          value: "*"
-          copy-to-response: true
+
+app:
+  cors:
+    sse:
+      allowed-origins:
+        - http://localhost:4200
+      allowed-methods:
+        - GET
+      allowed-headers:
+        - "*"
+      allow-credentials: false
+      max-age: 3600
+    api:
+      allowed-origins:
+        - http://localhost:4200
+      allowed-methods:
+        - OPTIONS
+        - POST
+        - GET
+      allowed-headers:
+        - "*"
+      allow-credentials: false
+      max-age: 3600
 
 logging:
   level:

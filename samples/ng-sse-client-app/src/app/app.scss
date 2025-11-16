@@ -66,6 +66,78 @@ h1 {
   margin-left: auto;
 }
 
+.bell {
+  position: relative;
+  margin-left: auto;
+  border: 1px solid #ddd;
+  background: white;
+  padding: 0.3rem 0.6rem;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.bell:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  background: #e02424;
+  color: white;
+  font-size: 0.7rem;
+  padding: 0 6px;
+  border-radius: 999px;
+}
+
+.dropdown {
+  position: relative;
+  margin: 0.5rem 0 1rem 0;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  background: #fff;
+}
+.dropdown-header {
+  font-weight: 600;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #eee;
+}
+.empty {
+  padding: 0.75rem;
+  color: #666;
+}
+
+.notif-list {
+  list-style: none;
+  padding: 0.25rem;
+  margin: 0;
+  display: grid;
+  gap: 0.25rem;
+}
+.notif-list li.read { opacity: 0.7; }
+.notif-item {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+}
+.notif-item:hover { background: #f8f8f8; }
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #bbb;
+}
+.dot.unread { background: #2f80ed; }
+.action { font-size: 0.8rem; color: #2f80ed; }
+.action.done { color: #999; }
+
 .list {
   list-style: none;
   padding: 0;

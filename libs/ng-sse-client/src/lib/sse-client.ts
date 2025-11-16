@@ -9,6 +9,7 @@ import {
 import { EventSourceFactory, EventSourceLike } from './event-source.factory';
 import { Observable } from 'rxjs';
 import { computeBackoffDelay } from './backoff';
+import {ApiCallbackService} from "./api-callback.service";
 
 export interface StreamOptions<T = unknown> extends Partial<Omit<SseClientConfig, 'url' | 'parse'>> {
   /** Custom parser for the data payload */
@@ -20,6 +21,7 @@ export class SseClient {
   private readonly globalConfig: Partial<SseClientConfig>;
   private readonly zone = inject(NgZone);
   private readonly esFactory = inject(EventSourceFactory);
+  private readonly apiCallback = inject(ApiCallbackService);
 
   constructor() {
     this.globalConfig = inject(SSE_CLIENT_CONFIG, { optional: true }) ?? {};
@@ -46,11 +48,57 @@ export class SseClient {
     return new Observable<T>((subscriber) => {
       let es: EventSourceLike | null = null;
       let closed = false;
-      let retries = 0;
+      let retries = 0; // number of consecutive error-driven retries performed so far
       let lastEventId: string | undefined;
+
+      const hooks = merged.hooks ?? {};
+
+      const processEventData = (data: T, eventType: string, raw?: MessageEvent) => {
+        // Fire onMessage hook
+        try {
+          hooks.onMessage?.({ eventType, data, rawEvent: raw as MessageEvent });
+        } catch {}
+
+        // Execute callbacks if configured
+        const callbacks = merged.callbacks || [];
+        for (const callbackConfig of callbacks) {
+          // Check if callback applies to this event type
+          if (callbackConfig.eventType && callbackConfig.eventType !== eventType) {
+            continue;
+          }
+
+          // Check condition if specified
+          if (callbackConfig.condition && !callbackConfig.condition(data)) {
+            continue;
+          }
+
+          // Execute the callback
+          this.zone.runOutsideAngular(() => {
+            this.apiCallback
+              .executeCallbackWithRetry(data, callbackConfig.apiCallback, callbackConfig.retry)
+              .subscribe({
+                next: (result) => {
+                  // side-effect success; intentionally not emitting to stream
+                  // console.debug('API callback executed successfully:', result);
+                },
+                error: (error) => {
+                  // callback failure should not break the stream
+                  // console.error('API callback execution failed:', error);
+                },
+              });
+          });
+        }
+
+        // Emit the event data to subscribers
+        this.zone.run(() => subscriber.next(data));
+      };
 
       const openConnection = () => {
         const connectUrl = this.buildReconnectUrl(merged.url, merged.lastEventIdParamName, lastEventId);
+
+        // Hook: about to connect
+        try { hooks.onConnect?.(connectUrl); } catch {}
+
         this.zone.runOutsideAngular(() => {
           try {
             es = this.esFactory.create(connectUrl, merged.withCredentials);
@@ -67,15 +115,17 @@ export class SseClient {
             lastEventId = (ev as any).lastEventId as string | undefined;
             try {
               const data = merged.parse<T>(String(ev.data));
-              this.zone.run(() => subscriber.next(data));
+              processEventData(data, 'message', ev);
             } catch (e) {
               this.zone.run(() => subscriber.error(e));
             }
           };
 
-          // onopen just resets retries
+          // onopen resets retries and fires hook
           es.onopen = () => {
+            const attempt = retries; // how many retries preceded this successful open
             retries = 0;
+            try { hooks.onOpen?.({ url: connectUrl, attempt }); } catch {}
           };
 
           const onError = (ev: Event) => {
@@ -84,28 +134,37 @@ export class SseClient {
 
             // If reconnection disabled, push error and complete
             if (!merged.reconnection.enabled) {
+              try { hooks.onError?.({ event: ev, attempt: retries, willRetry: false }); } catch {}
               this.zone.run(() => {
                 subscriber.error(new Error('SSE connection error'));
               });
               return;
             }
 
-            // Will attempt reconnects
+            // Will attempt reconnects?
             if (merged.reconnection.maxRetries >= 0 && retries >= merged.reconnection.maxRetries) {
+              try { hooks.onError?.({ event: ev, attempt: retries, willRetry: false }); } catch {}
+              try { hooks.onClose?.({ reason: 'retriesExceeded' }); } catch {}
               this.zone.run(() => subscriber.complete());
               return;
             }
-            retries += 1;
+            const nextAttempt = retries + 1;
             const delay = computeBackoffDelay(
-              retries,
+              nextAttempt,
               merged.reconnection.initialDelayMs,
               merged.reconnection.maxDelayMs,
               merged.reconnection.backoffMultiplier,
               merged.reconnection.jitterRatio
             );
 
+            try {
+              hooks.onError?.({ event: ev, attempt: nextAttempt, willRetry: true, nextDelayMs: delay });
+              hooks.onReconnectAttempt?.({ attempt: nextAttempt, delayMs: delay });
+            } catch {}
+
             // schedule reconnect
             setTimeout(() => {
+              retries = nextAttempt;
               try {
                 es?.close();
               } catch {}
@@ -118,14 +177,15 @@ export class SseClient {
 
           es.onerror = onError;
 
-          // attach named events if any
+          // attach named events if any (skip default 'message' to avoid duplicate handling)
           const namedListeners: Array<{ name: string; fn: (ev: MessageEvent) => void }> = [];
-          for (const name of merged.events) {
+          const uniqueNamedEvents = Array.from(new Set(merged.events)).filter((e) => e && e !== 'message');
+          for (const name of uniqueNamedEvents) {
             const fn = (ev: MessageEvent) => {
               lastEventId = (ev as any).lastEventId as string | undefined;
               try {
                 const data = merged.parse<T>(String(ev.data));
-                this.zone.run(() => subscriber.next(data));
+                processEventData(data, name, ev);
               } catch (e) {
                 this.zone.run(() => subscriber.error(e));
               }
@@ -148,6 +208,7 @@ export class SseClient {
           // Register teardown once
           subscriber.add(() => {
             closed = true;
+            try { hooks.onClose?.({ reason: 'unsubscribe' }); } catch {}
             teardown();
           });
         });
@@ -193,6 +254,8 @@ export class SseClient {
       lastEventIdParamName:
         options?.lastEventIdParamName ?? this.globalConfig.lastEventIdParamName ?? 'lastEventId',
       reconnection,
+      callbacks: options?.callbacks ?? this.globalConfig.callbacks ?? DEFAULT_SSE_CLIENT_CONFIG.callbacks,
+      hooks: options?.hooks ?? this.globalConfig.hooks ?? DEFAULT_SSE_CLIENT_CONFIG.hooks,
     } as Required<SseClientConfig>;
   }
 }

@@ -1,6 +1,7 @@
 package com.spectrayan.sse.server.config;
 
 import org.slf4j.MDC;
+import org.springframework.core.Ordered;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import org.springframework.web.server.WebFilter;
@@ -18,7 +19,7 @@ import java.util.*;
  */
 @Component
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)
-public class SseServerWebFilter implements WebFilter {
+public class SseServerWebFilter implements WebFilter, Ordered {
 
     private final SseServerProperties properties;
     private final SseHeaderHandler headerHandler;
@@ -53,6 +54,11 @@ public class SseServerWebFilter implements WebFilter {
                         MDC.remove(key);
                     }
                 });
+    }
+
+    @Override
+    public int getOrder() {
+        return properties != null && properties.getWebflux() != null ? properties.getWebflux().getFilterOrder() : 0;
     }
 
     private Map<String, String> addToMDC(ServerWebExchange exchange) {
