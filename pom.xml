@@ -67,6 +67,7 @@
                   <releaseProfiles>release</releaseProfiles>
                   <preparationGoals>clean verify</preparationGoals>
                   <pushChanges>false</pushChanges>
+                  <goals>clean deploy central-publishing:publish</goals>
               </configuration>
           </plugin>
           <plugin>
