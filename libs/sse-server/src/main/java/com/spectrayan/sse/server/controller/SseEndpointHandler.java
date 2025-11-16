@@ -57,13 +57,15 @@ import java.util.function.Supplier;
  *   - Adds MDC context entries (topic, sessionId, remoteAddress) under the configured key.
  * <p>
  * Typical router usage:
- * <pre>
- * RouterFunction<ServerResponse> routes(SseEndpointHandler handler) {
- *   return RouterFunctions.route()
+ * <pre>{@code
+ * org.springframework.web.reactive.function.server.RouterFunction<
+ *     org.springframework.web.reactive.function.server.ServerResponse> routes(
+ *     SseEndpointHandler handler) {
+ *   return org.springframework.web.reactive.function.server.RouterFunctions.route()
  *       .GET("/sse/{topic}", handler::handle)
  *       .build();
  * }
- * </pre>
+ * }</pre>
  */
 @Component
 @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(prefix = "spectrayan.sse.server", name = "enabled", havingValue = "true", matchIfMissing = true)

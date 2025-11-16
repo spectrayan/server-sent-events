@@ -77,8 +77,9 @@ public class SseServerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean(ConnectionRegistry.class)
-    public ConnectionRegistry sseConnectionRegistry(com.spectrayan.sse.server.topic.TopicRegistry topicRegistry) {
-        return new TopicConnectionRegistry(topicRegistry);
+    public ConnectionRegistry sseConnectionRegistry(SseEmitter emitter) {
+        // Default emitter also implements TopicRegistry; adapt it to ConnectionRegistry
+        return new TopicConnectionRegistry((com.spectrayan.sse.server.topic.TopicRegistry) emitter);
     }
 
     @Bean
@@ -228,6 +229,8 @@ public class SseServerAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnClass(org.springframework.http.codec.ServerCodecConfigurer.class)
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnBean(org.springframework.http.codec.ServerCodecConfigurer.class)
     @ConditionalOnProperty(prefix = "spectrayan.sse.server.errors", name = "enabled", havingValue = "true", matchIfMissing = true)
     public SseExceptionHandler sseExceptionHandler(SseHeaderHandler headerHandler,
                                                    ObjectProvider<SseErrorCustomizer> errorCustomizer,
@@ -248,7 +251,10 @@ public class SseServerAutoConfiguration {
     @Bean
     @ConditionalOnMissingBean(com.spectrayan.sse.server.topic.TopicRegistry.class)
     public com.spectrayan.sse.server.topic.TopicRegistry sseTopicRegistry(SseEmitter emitter) {
-        // Default emitter implements TopicRegistry; expose it as a separate bean
-        return (com.spectrayan.sse.server.topic.TopicRegistry) emitter;
+        // Default emitter implements TopicRegistry; expose a delegating wrapper to avoid
+        // the bean also being considered an SseEmitter by type resolution
+        return new com.spectrayan.sse.server.topic.DelegatingTopicRegistry(
+                (com.spectrayan.sse.server.topic.TopicRegistry) emitter
+        );
     }
 }
