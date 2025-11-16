@@ -120,6 +120,10 @@ jobs:
         with:
           settings-file: .mvn/settings.xml
           working-directory: '.'
+      - name: Import GPG private key
+        uses: spectrayan/github-workflows/.github/actions/gpg-import@v1
+        with:
+          gpg-private-key: ${{ env.GPG_PRIVATE_KEY }}
       - name: Deploy (release profile)
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
