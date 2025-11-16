@@ -30,12 +30,21 @@ import java.util.Set;
  */
 public class ReactorMdcConfiguration {
 
+    /**
+     * Global Reactor hook key used to register/unregister the MDC lifting operator.
+     */
     public static final String HOOK_KEY = "mdcContextLifter";
 
     private final Set<String> mdcKeys = new LinkedHashSet<>();
     private final boolean enabled;
     private final String contextMarkerKey;
 
+    /**
+     * Construct the MDC bridge configuration using server properties and header customization.
+     *
+     * @param properties server properties controlling MDC bridge behavior
+     * @param headerHandler header handler providing additional MDC keys to propagate
+     */
     public ReactorMdcConfiguration(SseServerProperties properties, SseHeaderHandler headerHandler) {
         this.enabled = properties == null || properties.isMdcBridgeEnabled();
         this.contextMarkerKey = (properties != null ? properties.getMdcContextKey() : "sseMdc");
@@ -49,6 +58,9 @@ public class ReactorMdcConfiguration {
         }
     }
 
+    /**
+     * Register the Reactor hook that lifts values from Reactor Context into SLF4J MDC.
+     */
     @PostConstruct
     public void registerHook() {
         if (!enabled) {
@@ -85,6 +97,9 @@ public class ReactorMdcConfiguration {
         }));
     }
 
+    /**
+     * Remove the previously registered Reactor MDC lifting hook.
+     */
     @PreDestroy
     public void removeHook() {
         Hooks.resetOnEachOperator(HOOK_KEY);

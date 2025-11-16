@@ -16,6 +16,12 @@ public class DefaultHeartbeatPolicy implements HeartbeatPolicy {
     private final SseServerProperties props;
     private final EventSerializer serializer;
 
+    /**
+     * Create a heartbeat policy backed by server properties.
+     *
+     * @param props server properties to read heartbeat settings from
+     * @param serializer serializer to build heartbeat SSE frames
+     */
     public DefaultHeartbeatPolicy(SseServerProperties props, EventSerializer serializer) {
         this.props = props;
         this.serializer = serializer;

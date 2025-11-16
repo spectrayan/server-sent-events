@@ -16,6 +16,11 @@ import java.util.Map;
 public final class DelegatingTopicRegistry implements TopicRegistry {
     private final TopicRegistry delegate;
 
+    /**
+     * Create a delegating registry that forwards all calls to the given {@code delegate}.
+     *
+     * @param delegate underlying registry to delegate to
+     */
     public DelegatingTopicRegistry(TopicRegistry delegate) {
         this.delegate = delegate;
     }

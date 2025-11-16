@@ -63,6 +63,14 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
     private final SessionTracker sessionTracker;
     private final EmissionService emissionService;
 
+    /**
+     * Create a new emitter with the given dependencies and customization hooks.
+     *
+     * @param properties library/server properties controlling topics, buffering, heartbeat, etc.
+     * @param sinkCustomizer optional provider of {@code SseEmitterCustomizer} to build per-topic sinks
+     * @param sessionHooks optional ordered provider of session lifecycle hooks
+     * @param sessionIdGenerator generator used to assign session identifiers
+     */
     public AbstractSseEmitter(SseServerProperties properties,
                               org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseEmitterCustomizer> sinkCustomizer,
                               org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,

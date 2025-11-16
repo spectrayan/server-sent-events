@@ -29,6 +29,24 @@ public class DefaultSseTemplateBuilder implements SseTemplateBuilder {
     private ErrorMapper errorMapper;
     private ConnectionRegistry connectionRegistry;
 
+    /**
+     * Create a builder for {@link com.spectrayan.sse.server.template.DefaultSseTemplate}.
+     *
+     * @param emitter low-level emitter used by the template
+     * @param headerHandler helper to apply standard SSE headers
+     * @param props configuration properties
+     * @param streamCustomizers optional provider of stream customizers
+     * @param headerCustomizers optional provider of header customizers
+     * @param endpointCustomizers optional provider of endpoint customizers
+     * @param eventPublisher Spring application event publisher
+     * @param sessionIdGenerator generator for session identifiers
+     * @param serializer event serializer strategy
+     * @param clientFilter connection admission strategy
+     * @param reconnectPolicy retry advertisement policy
+     * @param heartbeatPolicy heartbeat production policy
+     * @param errorMapper error mapping strategy
+     * @param connectionRegistry registry exposing topic/session information
+     */
     public DefaultSseTemplateBuilder(
             SseEmitter emitter,
             SseHeaderHandler headerHandler,

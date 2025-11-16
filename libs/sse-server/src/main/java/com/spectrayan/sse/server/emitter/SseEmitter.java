@@ -43,6 +43,7 @@ public interface SseEmitter {
     /**
      * Emit a data-only SSE to a specific topic. Equivalent to {@link #emit(String, Object)}.
      *
+     * @param <T> payload type
      * @param topicId topic to emit to
      * @param payload payload to serialize into {@code data}
      * @throws com.spectrayan.sse.server.error.TopicNotFoundException if the topic does not exist yet
@@ -53,6 +54,7 @@ public interface SseEmitter {
     /**
      * Emit to a specific topic with an explicit {@code event} name.
      *
+     * @param <T> payload type
      * @param topicId topic to emit to
      * @param eventName the SSE {@code event} name (may be {@code null})
      * @param payload payload to send
@@ -64,6 +66,7 @@ public interface SseEmitter {
     /**
      * Emit to a specific topic with {@code event} and {@code id} fields.
      *
+     * @param <T> payload type
      * @param topicId topic to emit to
      * @param eventName event name (nullable)
      * @param payload payload to send
@@ -77,32 +80,53 @@ public interface SseEmitter {
      * Broadcast a data-only event to all currently active topics. Best‑effort: topics that
      * reject the signal are logged and skipped; the method does not fail for other topics.
      *
+      * @param <T> payload type
      * @param payload payload to send to all topics
      */
     <T> void emitToAll(T payload);
 
     /**
      * Return the identifiers of currently active topics.
+     *
+     * @return a collection view of active topic ids
      */
     Collection<String> currentTopics();
 
     /**
      * Synonym for {@link #emitToTopic(String, Object)}.
+     *
+     * @param <T> payload type
+     * @param topicId topic to emit to
+     * @param payload payload to send
      */
     <T> void emit(String topicId, T payload);
 
     /**
      * Synonym for {@link #emitToTopic(String, String, Object)}.
+     *
+     * @param <T> payload type
+     * @param topicId topic to emit to
+     * @param eventName event name (nullable)
+     * @param payload payload to send
      */
     <T> void emit(String topicId, String eventName, T payload);
 
     /**
      * Synonym for {@link #emitToTopic(String, String, Object, String)}.
+     *
+     * @param <T> payload type
+     * @param topicId topic to emit to
+     * @param eventName event name (nullable)
+     * @param payload payload to send
+     * @param id SSE {@code id} to set (nullable)
      */
     <T> void emit(String topicId, String eventName, T payload, String id);
 
     /**
      * Broadcast to all topics. Synonym for {@link #emitToAll(Object)}.
+     *
+     * @param <T> payload type
+     * @param payload payload to send to all topics
      */
     <T> void emit(T payload);
 

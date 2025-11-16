@@ -12,6 +12,12 @@ import reactor.core.publisher.Mono;
  * Default mapper that converts errors into a single structured SSE event using ErrorEvents helpers.
  */
 public class DefaultErrorMapper implements ErrorMapper {
+    /**
+     * Create a mapper that converts any error into a single structured SSE event.
+     */
+    public DefaultErrorMapper() {
+    }
+
     @Override
     public Flux<ServerSentEvent<Object>> map(Throwable error, SseConnectContext ctx) {
         return Mono.deferContextual(view -> {

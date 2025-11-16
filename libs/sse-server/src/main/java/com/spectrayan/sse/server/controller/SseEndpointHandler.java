@@ -94,8 +94,17 @@ public class SseEndpointHandler {
          * - {@code endpointCustomizers}: outer wrappers around the core stream supplier (cross-cutting concerns).
          * - {@code eventPublisher}: publishes lifecycle events (created, subscribed, unsubscribed/closed, disconnected).
          * - {@code sessionIdGenerator}: optional generator for session id when WebSession id is not available.
+         * <p>
+         * Note: Customizers are obtained as ordered streams so their order can be controlled via Spring ordering.
          *
-         * @implNote Customizers are obtained as ordered streams so their order can be controlled via Spring ordering.
+         * @param sseEmitter emitter used to connect clients and emit SSEs
+         * @param headerHandler helper that applies SSE headers
+         * @param props configuration properties
+         * @param streamCustomizers provider of stream customizers (ordered)
+         * @param headerCustomizers provider of header customizers (ordered)
+         * @param endpointCustomizers provider of endpoint customizers (ordered)
+         * @param eventPublisher Spring application event publisher
+         * @param sessionIdGenerator generator for session identifiers
          */
         public SseEndpointHandler(SseEmitter sseEmitter,
                               SseHeaderHandler headerHandler,

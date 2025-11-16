@@ -9,5 +9,13 @@ import reactor.core.publisher.Flux;
  */
 @FunctionalInterface
 public interface ErrorMapper {
+    /**
+     * Convert a stream error into one or more {@link ServerSentEvent} frames so the
+     * connection can continue instead of terminating.
+     *
+     * @param error the error that occurred
+     * @param ctx connection context associated with the error
+     * @return a flux of SSE frames representing the error
+     */
     Flux<ServerSentEvent<Object>> map(Throwable error, SseConnectContext ctx);
 }

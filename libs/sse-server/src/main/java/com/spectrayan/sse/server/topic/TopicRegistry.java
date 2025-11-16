@@ -10,24 +10,31 @@ import java.util.Map;
  */
 public interface TopicRegistry {
     /**
+     * Return the identifiers of currently active topics.
+     *
      * @return currently active topic identifiers.
      */
     Collection<String> topics();
 
     /**
      * Returns a snapshot of active sessions for the given topic keyed by sessionId.
+     *
      * @param topic the topic id
      * @return unmodifiable map of sessionId -> SseSession; empty if none or topic not present
      */
     Map<String, SseSession> sessions(String topic);
 
     /**
+     * Return the current subscriber count for a topic.
+     *
      * @param topic topic id
      * @return current subscriber count for the topic; 0 if none or not present
      */
     int subscriberCount(String topic);
 
     /**
+     * Obtain a snapshot of subscriber counts per topic.
+     *
      * @return snapshot of subscriber counts per topic.
      */
     Map<String, Integer> topicSubscriberCounts();

@@ -7,6 +7,12 @@ import com.spectrayan.sse.server.template.SseConnectContext;
  * Default client filter that allows all connections.
  */
 public class AllowAllClientFilter implements ClientFilter {
+    /**
+     * Create a filter that unconditionally allows all client connections.
+     */
+    public AllowAllClientFilter() {
+    }
+
     @Override
     public boolean allow(SseConnectContext ctx) { return true; }
 }

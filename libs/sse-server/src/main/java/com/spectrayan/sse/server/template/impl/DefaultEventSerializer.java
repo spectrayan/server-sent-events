@@ -9,6 +9,12 @@ import org.springframework.http.codec.ServerSentEvent;
  * to Spring's HTTP message writers.
  */
 public class DefaultEventSerializer implements EventSerializer {
+    /**
+     * Create a simple serializer that wraps payloads into {@link ServerSentEvent} frames.
+     */
+    public DefaultEventSerializer() {
+    }
+
     @Override
     public ServerSentEvent<Object> toSse(Object payload, String eventName, String id) {
         ServerSentEvent.Builder<Object> b = ServerSentEvent.builder(payload);

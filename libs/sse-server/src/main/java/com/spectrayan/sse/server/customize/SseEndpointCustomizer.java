@@ -16,6 +16,8 @@ import java.util.function.Supplier;
 @FunctionalInterface
 public interface SseEndpointCustomizer {
     /**
+     * Allow customization of the endpoint handling flow.
+     *
      * @param topic the requested topic path variable
      * @param exchange the current WebFlux exchange
      * @param next supplies the default endpoint behavior when invoked

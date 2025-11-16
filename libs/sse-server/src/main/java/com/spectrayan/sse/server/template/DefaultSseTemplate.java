@@ -50,6 +50,24 @@ public class DefaultSseTemplate implements SseTemplate {
     private final ErrorMapper errorMapper;
     private final ConnectionRegistry connectionRegistry;
 
+    /**
+     * Create the default {@link SseTemplate} implementation.
+     *
+     * @param emitter low-level emitter used to connect/broadcast SSEs
+     * @param headerHandler helper to apply standard SSE response headers
+     * @param props configuration properties controlling behavior
+     * @param streamCustomizers optional ordered customizers for per-request stream transformation
+     * @param headerCustomizers optional ordered customizers for response headers
+     * @param endpointCustomizers optional ordered customizers that can wrap endpoint handling
+     * @param eventPublisher Spring publisher for session lifecycle events
+     * @param sessionIdGenerator strategy to produce session identifiers
+     * @param serializer strategy to serialize payloads into {@link org.springframework.http.codec.ServerSentEvent}
+     * @param clientFilter filter to allow/deny incoming connections
+     * @param reconnectPolicy policy controlling SSE retry advertisement
+     * @param heartbeatPolicy policy producing heartbeat events
+     * @param errorMapper mapper to convert stream errors to SSE frames
+     * @param connectionRegistry registry exposing topic/session introspection
+     */
     public DefaultSseTemplate(SseEmitter emitter,
                        SseHeaderHandler headerHandler,
                        SseServerProperties props,

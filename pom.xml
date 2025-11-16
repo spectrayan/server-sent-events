@@ -60,6 +60,7 @@
               <configuration>
                   <!-- Tag like 1.0.0, 1.0.0-M1, 1.0.0-RC1, etc. (no leading 'v' to follow Spring conventions) -->
                   <tagNameFormat>@{project.version}</tagNameFormat>
+
                   <autoVersionSubmodules>true</autoVersionSubmodules>
                   <useReleaseProfile>false</useReleaseProfile>
                   <!-- We will select the desired profile explicitly (-P) -->

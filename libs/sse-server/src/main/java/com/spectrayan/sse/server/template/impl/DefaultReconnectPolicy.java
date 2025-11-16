@@ -12,6 +12,11 @@ import java.util.Optional;
 public class DefaultReconnectPolicy implements ReconnectPolicy {
     private final SseServerProperties props;
 
+    /**
+     * Create a reconnect policy backed by {@link SseServerProperties}.
+     *
+     * @param props server properties used to determine retry configuration
+     */
     public DefaultReconnectPolicy(SseServerProperties props) {
         this.props = props;
     }

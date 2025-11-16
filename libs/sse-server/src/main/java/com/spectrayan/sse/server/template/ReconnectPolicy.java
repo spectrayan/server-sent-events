@@ -7,5 +7,12 @@ import java.util.Optional;
  */
 @FunctionalInterface
 public interface ReconnectPolicy {
+    /**
+     * Determine the reconnection delay to advertise to the client using the SSE control
+     * line {@code retry: <millis>}.
+     *
+     * @param ctx connection context
+     * @return an optional delay in milliseconds; empty to omit the retry directive
+     */
     Optional<Long> retryDelayMillis(SseConnectContext ctx);
 }

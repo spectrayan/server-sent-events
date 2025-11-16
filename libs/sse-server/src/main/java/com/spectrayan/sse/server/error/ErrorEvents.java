@@ -13,6 +13,14 @@ public final class ErrorEvents {
 
     private ErrorEvents() {}
 
+    /**
+     * Build a structured SSE error event from a domain {@link SseException}.
+     *
+     * @param ex the domain exception
+     * @param topic the topic associated with the error (overrides ex.topic when non-null)
+     * @param contextView Reactor context view (reserved for future enrichment)
+     * @return an SSE frame carrying a serialized {@link ErrorPayload}
+     */
     public static ServerSentEvent<Object> fromException(SseException ex, String topic, ContextView contextView) {
         ErrorPayload payload = new ErrorPayload(
                 ex.getCode().name(),
@@ -26,6 +34,14 @@ public final class ErrorEvents {
                 .build();
     }
 
+    /**
+     * Build a structured SSE error event from an arbitrary {@link Throwable}.
+     *
+     * @param t the throwable
+     * @param topic the topic associated with the error, if known
+     * @param contextView Reactor context view (reserved for future enrichment)
+     * @return an SSE frame carrying a serialized {@link ErrorPayload}
+     */
     public static ServerSentEvent<Object> fromThrowable(Throwable t, String topic, ContextView contextView) {
         ErrorPayload payload = new ErrorPayload(
                 ErrorCode.INTERNAL_ERROR.name(),
