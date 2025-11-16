@@ -60,13 +60,13 @@
               <configuration>
                   <!-- Tag like 1.0.0, 1.0.0-M1, 1.0.0-RC1, etc. (no leading 'v' to follow Spring conventions) -->
                   <tagNameFormat>@{project.version}</tagNameFormat>
-                  <updateWorkingCopyVersions>false</updateWorkingCopyVersions>
+                  <updateWorkingCopyVersions>true</updateWorkingCopyVersions>
                   <autoVersionSubmodules>true</autoVersionSubmodules>
                   <useReleaseProfile>false</useReleaseProfile>
                   <!-- We will select the desired profile explicitly (-P) -->
                   <releaseProfiles>release</releaseProfiles>
                   <preparationGoals>clean verify</preparationGoals>
-                  <pushChanges>false</pushChanges>
+                  <pushChanges>true</pushChanges>
                   <goals>clean deploy central-publishing:publish</goals>
               </configuration>
           </plugin>
@@ -285,12 +285,12 @@
       </build>
     </profile>
 
-    <!-- Snapshot builds (version must end with -SNAPSHOT). Deploys to OSSRH snapshots; no signing required. -->
+    <!-- Snapshot builds (version must end with -SNAPSHOT). Deploys to OSSRH snapshots; -->
     <profile>
       <id>snapshot</id>
       <properties>
         <maven.deploy.skip>false</maven.deploy.skip>
-        <gpg.skip>true</gpg.skip>
+        <gpg.skip>false</gpg.skip>
       </properties>
     </profile>
   </profiles>

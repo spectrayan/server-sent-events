@@ -190,6 +190,21 @@ The parent POM is configured with:
 General rules:
 - Always pass the appropriate profile with `-P` to select the target channel.
 - Set both the release version and the next development version explicitly.
+- For local runs while testing the release process, prefer “safe” flags so your working copy and remote aren’t changed automatically (see below).
+
+#### Local release (safe defaults)
+
+When running the Maven Release Plugin locally for milestones/RCs/GA, use these flags to avoid mutating your local working copy or pushing to the remote:
+
+```
+-DlocalCheckout=true \
+-DupdateWorkingCopyVersions=false \
+-DpushChanges=false
+```
+
+Notes:
+- You do NOT need to run a separate `deploy` command during release. The plugin is already configured with `<goals>clean deploy central-publishing:publish</goals>`, so `release:perform` will build, sign, deploy, and trigger Central Publishing.
+- In CI or when you actually want tags/commits to be created and pushed, omit the above flags so the release plugin can push changes.
 
 #### A) Publish a SNAPSHOT (OSSRH Snapshots)
 Use for ongoing development between milestones/RCs.
@@ -203,7 +218,8 @@ mvn -P milestone \
     release:prepare \
     release:perform \
     -DreleaseVersion=1.0.0-M1 \
-    -DdevelopmentVersion=1.0.1-SNAPSHOT
+    -DdevelopmentVersion=1.0.1-SNAPSHOT \
+    -DlocalCheckout=true -DupdateWorkingCopyVersions=false -DpushChanges=false
 ```
 
 #### C) Release Candidate (e.g., 1.0.0-RC1)
@@ -212,7 +228,8 @@ mvn -P rc \
     release:prepare \
     release:perform \
     -DreleaseVersion=1.0.0-RC1 \
-    -DdevelopmentVersion=1.0.1-SNAPSHOT
+    -DdevelopmentVersion=1.0.1-SNAPSHOT \
+    -DlocalCheckout=true -DupdateWorkingCopyVersions=false -DpushChanges=false
 ```
 
 #### D) GA / Final release (e.g., 1.0.0)
@@ -221,7 +238,8 @@ mvn -P release \
     release:prepare \
     release:perform \
     -DreleaseVersion=1.0.0 \
-    -DdevelopmentVersion=1.0.1-SNAPSHOT
+    -DdevelopmentVersion=1.0.1-SNAPSHOT \
+    -DlocalCheckout=true -DupdateWorkingCopyVersions=false -DpushChanges=false
 ```
 
 Tips:
@@ -237,6 +255,24 @@ Tips:
   ```
 
 After `release:perform`, Central Publishing may require a manual review/approve step depending on your account settings. Check Sonatype Central portal if the release is not visible after a few minutes.
+
+---
+
+### GitHub Actions workflows for releasing (Java)
+
+Two dedicated workflows complement local Maven commands:
+
+- `.github/workflows/libs-snapshot.yml`
+  - Triggers: on push to `main` and manual dispatch
+  - What it does: builds/tests `libs/sse-server` and deploys `-SNAPSHOT` versions to OSSRH Snapshots using profile `-P snapshot`
+  - Secrets used: `OSSRH_USERNAME`, `OSSRH_PASSWORD` (mapped to the `ossrh-snapshots` server in Maven settings)
+
+- `.github/workflows/libs-milestone.yml`
+  - Trigger: manual dispatch only, with inputs: `channel` (`milestone` | `rc` | `release`), `releaseVersion`, `developmentVersion`, and optional `dryRun`
+  - What it does: runs the Maven Release Plugin with the selected profile and performs Central Publishing (no separate deploy step needed thanks to `<goals>clean deploy central-publishing:publish</goals>`)
+  - Secrets used: same as existing release workflow (Central Publishing): `MAVEN_SERVER_USERNAME`, `MAVEN_SERVER_PASSWORD`, `GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE`
+
+Note: npm publishing for the Angular client remains handled by tags via the existing `libs-release.yml` workflow and is intentionally excluded from the snapshot/milestone workflows.
 
 ---
 

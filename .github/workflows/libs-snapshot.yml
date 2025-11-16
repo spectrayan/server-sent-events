@@ -1,0 +1,67 @@
+name: Libraries Snapshot (OSSRH)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  JAVA_VERSION: '21'
+  MAVEN_VERSION: '3.9.9'
+
+concurrency:
+  group: libs-snapshot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Build & test the Java library first
+  maven_build_test:
+    name: Java sse-server • build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        uses: spectrayan/github-workflows/.github/actions/java-setup@v1
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+      - name: Maven Setup
+        uses: spectrayan/github-workflows/.github/actions/maven-setup@v1
+        with:
+          settings-file: .mvn/settings.xml
+          working-directory: '.'
+      - name: Build & test sse-server
+        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
+        with:
+          goals: '-B -U -pl libs/sse-server verify'
+          working-directory: '.'
+
+  # Deploy snapshots to OSSRH once tests pass
+  deploy_snapshot:
+    name: Deploy snapshot to OSSRH
+    needs: [maven_build_test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        uses: spectrayan/github-workflows/.github/actions/java-setup@v1
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+      - name: Maven Setup (snapshots)
+        uses: spectrayan/github-workflows/.github/actions/maven-setup@v1
+        with:
+          settings-file: .mvn/settings.xml
+          working-directory: '.'
+          # Use the same server config semantics as libs-release.yml
+          server-id: central
+          server-username: secrets.MAVEN_SERVER_USERNAME
+          server-password: secrets.MAVEN_SERVER_PASSWORD
+      - name: Deploy SNAPSHOT
+        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
+        with:
+          goals: '-B -U -P snapshot clean deploy'
+          working-directory: '.'

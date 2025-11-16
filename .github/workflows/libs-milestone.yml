@@ -1,0 +1,102 @@
+name: Libraries Milestone/Release (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Release channel (milestone, rc, release)'
+        required: true
+        default: 'milestone'
+        type: choice
+        options:
+          - milestone
+          - rc
+          - release
+      releaseVersion:
+        description: 'Release version (e.g., 1.0.0-M1, 1.0.0-RC1, 1.0.0)'
+        required: true
+        type: string
+      developmentVersion:
+        description: 'Next development version (e.g., 1.0.1-SNAPSHOT)'
+        required: true
+        type: string
+      dryRun:
+        description: 'Run release:prepare in dry-run mode only'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+env:
+  JAVA_VERSION: '21'
+  MAVEN_VERSION: '3.9.9'
+
+concurrency:
+  group: libs-milestone-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare_verify:
+    name: Verify Java sse-server
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Java
+        uses: spectrayan/github-workflows/.github/actions/java-setup@v1
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+      - name: Maven Setup
+        uses: spectrayan/github-workflows/.github/actions/maven-setup@v1
+        with:
+          settings-file: .mvn/settings.xml
+          working-directory: '.'
+      - name: Build & test sse-server
+        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
+        with:
+          goals: '-B -U -pl libs/sse-server verify'
+          working-directory: '.'
+
+  release:
+    name: Perform ${{ inputs.channel }} release
+    needs: [prepare_verify]
+    runs-on: ubuntu-latest
+    env:
+      MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Setup Java
+        uses: spectrayan/github-workflows/.github/actions/java-setup@v1
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+      - name: Maven Setup (Central)
+        uses: spectrayan/github-workflows/.github/actions/maven-setup@v1
+        with:
+          settings-file: .mvn/settings.xml
+          working-directory: '.'
+          server-id: central
+          server-username: secrets.MAVEN_SERVER_USERNAME
+          server-password: secrets.MAVEN_SERVER_PASSWORD
+      - name: Import GPG private key
+        uses: spectrayan/github-workflows/.github/actions/gpg-import@v1
+        with:
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+      - name: Release (prepare + perform)
+        if: ${{ inputs.dryRun == false }}
+        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
+        with:
+          goals: "-B -P ${{ inputs.channel }} release:prepare release:perform -DreleaseVersion=${{ inputs.releaseVersion }} -DdevelopmentVersion=${{ inputs.developmentVersion }}"
+          working-directory: '.'
+      - name: Release (dry run only)
+        if: ${{ inputs.dryRun == true }}
+        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
+        with:
+          goals: "-B -P ${{ inputs.channel }} -DdryRun=true release:prepare -DreleaseVersion=${{ inputs.releaseVersion }} -DdevelopmentVersion=${{ inputs.developmentVersion }}"
+          working-directory: '.'
