@@ -36,7 +36,7 @@ jobs:
       - name: Build & test sse-server
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: '-B -U -pl libs/sse-server verify'
+          goals: '-B -U verify'
           working-directory: '.'
 
   # Deploy snapshots to OSSRH once tests pass

@@ -37,6 +37,13 @@
     <tag>1.0.0</tag>
     <url>https://github.com/spectrayan/server-sent-events</url>
   </scm>
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>github</name>
+            <url>https://maven.pkg.github.com/spectrayan/spectrayan/</url>
+        </repository>
+    </distributionManagement>
 
   <properties>
     <java.version>21</java.version>
@@ -68,6 +75,17 @@
                   <preparationGoals>clean verify</preparationGoals>
                   <pushChanges>true</pushChanges>
                   <goals>clean deploy central-publishing:publish</goals>
+              </configuration>
+          </plugin>
+          <!-- Configure Maven Deploy Plugin to use alt repositories provided via settings.xml -->
+          <plugin>
+              <groupId>org.apache.maven.plugins</groupId>
+              <artifactId>maven-deploy-plugin</artifactId>
+              <version>3.1.1</version>
+              <configuration>
+                  <!-- Use properties that we will define in settings.xml -->
+                  <altDeploymentRepository>${mavenAltDeploymentRepository}</altDeploymentRepository>
+                  <altSnapshotDeploymentRepository>${mavenAltSnapshotDeploymentRepository}</altSnapshotDeploymentRepository>
               </configuration>
           </plugin>
           <plugin>
