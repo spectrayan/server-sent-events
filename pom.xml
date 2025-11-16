@@ -4,7 +4,7 @@
 
   <groupId>com.spectrayan.sse</groupId>
   <artifactId>spectrayan-sse-parent</artifactId>
-  <version>1.0.1</version>
+  <version>1.0.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <parent>
@@ -34,7 +34,7 @@
   <scm>
     <connection>scm:git:https://github.com/spectrayan/server-sent-events.git</connection>
     <developerConnection>scm:git:ssh://git@github.com/spectrayan/server-sent-events.git</developerConnection>
-    <tag>1.0.1</tag>
+    <tag>1.0.0</tag>
     <url>https://github.com/spectrayan/server-sent-events</url>
   </scm>
 
