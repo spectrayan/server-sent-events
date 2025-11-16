@@ -108,6 +108,9 @@ jobs:
     needs: [maven_build_test]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
+    env:
+      # Needed by Maven GPG plugin; read from GitHub Secrets
+      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v4
       - name: Setup Java
@@ -128,8 +131,13 @@ jobs:
         uses: spectrayan/github-workflows/.github/actions/gpg-import@v1
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-      - name: Deploy (release profile)
+      - name: Prepare and Perform Release (release profile)
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: '-B -P release release:prepare release:perform deploy'
+          goals: '-B -P release release:prepare release:perform'
+          working-directory: '.'
+      - name: Deploy Artifacts (release profile)
+        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
+        with:
+          goals: '-B -P release deploy'
           working-directory: '.'
