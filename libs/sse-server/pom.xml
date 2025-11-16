@@ -78,6 +78,67 @@
     <build>
         <plugins>
             <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>0.8.12</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>jacoco-check</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <!-- Check coverage at the bundle (module) level to avoid per-package fragility -->
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>INSTRUCTION</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.60</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                            <excludes>
+                                <!-- Exclude pure POJOs/records and simple data holders -->
+                                <!-- config data classes -->
+                                <exclude>com/spectrayan/sse/server/config/SseServerProperties*.class</exclude>
+                                <exclude>com/spectrayan/sse/server/config/SseHeader.class</exclude>
+                                <!-- session data class -->
+                                <exclude>com/spectrayan/sse/server/session/SseSession.class</exclude>
+                                <!-- event payloads / application events (data-only) -->
+                                <exclude>com/spectrayan/sse/server/events/**</exclude>
+                                <!-- simple exceptions and enums in error package (data-carriers) -->
+                                <exclude>com/spectrayan/sse/server/error/ErrorPayload.class</exclude>
+                                <exclude>com/spectrayan/sse/server/error/ErrorCode.class</exclude>
+                                <exclude>com/spectrayan/sse/server/error/*Exception.class</exclude>
+                                <!-- topic view interfaces/adapters (no logic) -->
+                                <exclude>com/spectrayan/sse/server/topic/**</exclude>
+                                <!-- customize hooks (interfaces/functional only) -->
+                                <exclude>com/spectrayan/sse/server/customize/**</exclude>
+                                <!-- Keep auto-config and runtime logic IN coverage (do not exclude SseServerAutoConfiguration, handlers, emitters, template impls) -->
+                            </excludes>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
@@ -117,6 +178,30 @@
                         <goals>
                             <goal>jar</goal>
                         </goals>
+                        <configuration>
+                            <!-- Keep dev/CI lenient to avoid failing build on minor Javadoc issues -->
+                            <failOnError>false</failOnError>
+                            <encoding>${project.build.sourceEncoding}</encoding>
+                            <source>${java.version}</source>
+                            <!-- Relax doclint for missing descriptions/params, but keep others -->
+                            <additionalOptions>
+                                <additionalOption>-Xdoclint:all,-missing</additionalOption>
+                            </additionalOptions>
+                            <!-- Accept @implNote used in codebase -->
+                            <tags>
+                                <tag>
+                                    <name>implNote</name>
+                                    <placement>a</placement>
+                                    <head>Implementation Note:</head>
+                                </tag>
+                            </tags>
+                            <!-- Standard external links to reduce warnings in generated HTML -->
+                            <links>
+                                <link>https://docs.oracle.com/en/java/javase/21/docs/api/</link>
+                                <link>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</link>
+                                <link>https://projectreactor.io/docs/core/release/api/</link>
+                            </links>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -132,6 +217,40 @@
             </properties>
             <build>
                 <plugins>
+                    <!-- In release, generate strict Javadocs and fail on errors -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.6.3</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                                <configuration>
+                                    <failOnError>true</failOnError>
+                                    <encoding>${project.build.sourceEncoding}</encoding>
+                                    <source>${java.version}</source>
+                                    <additionalOptions>
+                                        <additionalOption>-Xdoclint:all</additionalOption>
+                                    </additionalOptions>
+                                    <tags>
+                                        <tag>
+                                            <name>implNote</name>
+                                            <placement>a</placement>
+                                            <head>Implementation Note:</head>
+                                        </tag>
+                                    </tags>
+                                    <links>
+                                        <link>https://docs.oracle.com/en/java/javase/21/docs/api/</link>
+                                        <link>https://docs.spring.io/spring-framework/docs/current/javadoc-api/</link>
+                                        <link>https://projectreactor.io/docs/core/release/api/</link>
+                                    </links>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>

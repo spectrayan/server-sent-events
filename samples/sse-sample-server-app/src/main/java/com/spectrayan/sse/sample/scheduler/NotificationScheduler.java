@@ -1,6 +1,7 @@
 package com.spectrayan.sse.sample.scheduler;
 
 import com.spectrayan.sse.server.emitter.SseEmitter;
+import com.spectrayan.sse.server.template.SseTemplate;
 import com.spectrayan.sse.sample.model.Notification;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,9 +18,11 @@ public class NotificationScheduler {
     //public static final String TOPIC = "notifications";
 
     private final SseEmitter sseEmitter;
+    private final SseTemplate sseTemplate;
 
-    public NotificationScheduler(SseEmitter sseEmitter) {
+    public NotificationScheduler(SseEmitter sseEmitter, SseTemplate sseTemplate) {
         this.sseEmitter = sseEmitter;
+        this.sseTemplate = sseTemplate;
     }
 
     // Emit a message every 5 seconds
@@ -45,6 +48,22 @@ public class NotificationScheduler {
             log.info("Scheduled complex notification emitted to all topics id={}", n.id());
         } catch (Exception ex) {
             log.warn("Failed to emit complex notification: {}", ex.toString());
+        }
+    }
+
+    // New: Emit using SseTemplate every 20 seconds (keeps emitter samples as-is)
+    @Scheduled(fixedRate = 20000, initialDelay = 7000)
+    public void emitTemplateNotification() {
+        try {
+            Notification n = new Notification(UUID.randomUUID().toString(),
+                    "Template-based notification",
+                    Instant.now());
+            // Demonstrate targeting a specific topic via template API
+            String topic = "notifications";
+            sseTemplate.broadcast(  n);
+            log.info("Template notification sent to topic={} id={}", topic, n.id());
+        } catch (Exception ex) {
+            log.warn("Failed to emit template-based notification: {}", ex.toString());
         }
     }
 }
