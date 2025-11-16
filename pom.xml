@@ -123,14 +123,6 @@
     </pluginManagement>
   </build>
 
-  <!-- Snapshots go to OSSRH snapshot repository; Central Publishing handles releases. -->
-  <distributionManagement>
-    <snapshotRepository>
-      <id>ossrh-snapshots</id>
-      <url>https://s01.oss.sonatype.org/content/repositories/snapshots/</url>
-    </snapshotRepository>
-  </distributionManagement>
-
   <profiles>
     <profile>
       <id>release</id>
