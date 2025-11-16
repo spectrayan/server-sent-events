@@ -131,5 +131,5 @@ jobs:
       - name: Deploy (release profile)
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: '-B -P release deploy'
+          goals: '-B -P release release:prepare release:perform deploy'
           working-directory: '.'
