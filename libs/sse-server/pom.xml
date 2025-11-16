@@ -204,4 +204,16 @@
         </plugins>
     </build>
 
+    <profiles>
+        <profile>
+            <id>release</id>
+        </profile>
+        <profile>
+            <id>milestone</id>
+        </profile>
+        <profile>
+            <id>snapshot</id>
+        </profile>
+    </profiles>
+
 </project>
