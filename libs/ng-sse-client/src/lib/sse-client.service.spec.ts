@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { SseClient } from './sse-client';
 import { SSE_CLIENT_CONFIG, SseClientConfig } from './config';
 
@@ -67,6 +69,9 @@ describe('SseClient', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        // Provide HttpClient for ApiCallbackService dependency chain
+        provideHttpClient(),
+        provideHttpClientTesting(),
         SseClient,
         {
           provide: SSE_CLIENT_CONFIG,
