@@ -77,6 +77,7 @@
               <extensions>true</extensions>
               <configuration>
                   <publishingServerId>central</publishingServerId>
+                  <autoPublish>true</autoPublish>
               </configuration>
           </plugin>
           <plugin>
@@ -94,7 +95,6 @@
                               <arg>--pinentry-mode</arg>
                               <arg>loopback</arg>
                           </gpgArguments>
-                          <passphrase>${GPG_PASSPHRASE}</passphrase>
                       </configuration>
                   </execution>
               </executions>
