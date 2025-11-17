@@ -57,7 +57,7 @@ jobs:
           settings-file: .mvn/settings.xml
           working-directory: '.'
           # Use the same server config semantics as libs-release.yml
-          server-id: central
+          server-id: maven-snapshots-repo
           server-username: secrets.MAVEN_SERVER_USERNAME
           server-password: secrets.MAVEN_SERVER_PASSWORD
       - name: Deploy SNAPSHOT
