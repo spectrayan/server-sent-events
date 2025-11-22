@@ -3,13 +3,12 @@ name: Libraries CI/CD
 on:
   push:
     branches: [ main ]
-    tags:
-      - 'v*'
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 permissions:
   contents: read
+  packages: write
 env:
   NODE_VERSION: '20'
   NPM_VERSION: '11.6.1'
@@ -77,7 +76,8 @@ jobs:
     name: Publish ng-sse-client to npm
     needs: [ng_build_test]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    # Manual only: allow from workflow_dispatch, disable on push/PR
+    if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
       id-token: write # for npm provenance (optional)
@@ -107,7 +107,8 @@ jobs:
     name: Publish sse-server to Maven Central
     needs: [maven_build_test]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    # Manual only: allow from workflow_dispatch, disable on push/PR
+    if: github.event_name == 'workflow_dispatch'
     env:
       # Needed by Maven GPG plugin; read from GitHub Secrets
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
@@ -135,4 +136,67 @@ jobs:
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
           goals: '-B -P release release:prepare release:perform'
+          working-directory: '.'
+
+  # ---------- Publish to GitHub Packages (automatic on main) ----------
+  publish_gpr_npm:
+    name: Publish ng-sse-client to GitHub Packages (npm)
+    needs: [ng_build_test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Node for GitHub Packages
+        uses: spectrayan/github-workflows/.github/actions/node-setup@v1
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          npm-version: ${{ env.NPM_VERSION }}
+          registry-url: 'https://npm.pkg.github.com'
+      - name: Install dependencies
+        uses: spectrayan/github-workflows/.github/actions/npm-install@v1
+        with:
+          working-directory: '.'
+          ci: true
+      - name: Build package
+        uses: spectrayan/github-workflows/.github/actions/node-build@v1
+        with:
+          working-directory: '.'
+          script: 'build'
+      - name: Publish to GitHub Packages (npm)
+        working-directory: libs/ng-sse-client
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npm publish --registry=https://npm.pkg.github.com
+
+  publish_gpr_maven:
+    name: Publish sse-server to GitHub Packages (Maven)
+    needs: [maven_build_test]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Java
+        uses: spectrayan/github-workflows/.github/actions/java-setup@v1
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+      - name: Maven Setup (GitHub Packages)
+        uses: spectrayan/github-workflows/.github/actions/maven-setup@v1
+        with:
+          settings-file: .mvn/settings.xml
+          working-directory: '.'
+          server-id: github
+          server-username: ${{ github.actor }}
+          server-password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Deploy to GitHub Packages
+        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
+        with:
+          goals: "-B -U -pl libs/sse-server -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }} deploy"
           working-directory: '.'
