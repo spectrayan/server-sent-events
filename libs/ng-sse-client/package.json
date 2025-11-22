@@ -5,12 +5,12 @@
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/your-group/server-sent-events.git"
+    "url": "git+https://github.com/spectrayan/server-sent-events.git"
   },
   "bugs": {
-    "url": "https://github.com/your-group/server-sent-events/issues"
+    "url": "https://github.com/spectrayan/server-sent-events/issues"
   },
-  "homepage": "https://github.com/your-group/server-sent-events#readme",
+  "homepage": "https://github.com/spectrayan/server-sent-events#readme",
   "keywords": [
     "angular",
     "sse",
