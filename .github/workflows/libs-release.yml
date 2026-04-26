@@ -199,7 +199,8 @@ jobs:
       - name: Deploy to GitHub Packages
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        uses: spectrayan/github-workflows/.github/actions/maven-build@v1
-        with:
-          goals: "-B -U -pl libs/sse-server -Dmaven.deploy.skip=false -Dgpg.skip=true -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} deploy"
-          working-directory: '.'
+        run: >
+          mvn -B -U -pl libs/sse-server -Dmaven.deploy.skip=false -Dgpg.skip=true 
+          -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
+          -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
+          deploy || echo 'Version already published, skipping'
