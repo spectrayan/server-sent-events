@@ -71,16 +71,15 @@ jobs:
           goals: '-B -U -pl libs/sse-server verify'
           working-directory: '.'
 
-  # ---------- Publish to npm (tags only) ----------
+  # ---------- Publish to npm (manual only) ----------
   publish_npm:
     name: Publish ng-sse-client to npm
     needs: [ng_build_test]
     runs-on: ubuntu-latest
-    # Manual only: allow from workflow_dispatch, disable on push/PR
     if: github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
-      id-token: write # for npm provenance (optional)
+      id-token: write
     steps:
       - uses: actions/checkout@v5
       - name: Setup Node
@@ -102,15 +101,13 @@ jobs:
           working-directory: '.'
           script: 'publish'
 
-  # ---------- Publish to Maven Central (tags only) ----------
+  # ---------- Publish to Maven Central (manual only) ----------
   publish_maven:
     name: Publish sse-server to Maven Central
     needs: [maven_build_test]
     runs-on: ubuntu-latest
-    # Manual only: allow from workflow_dispatch, disable on push/PR
     if: github.event_name == 'workflow_dispatch'
     env:
-      # Needed by Maven GPG plugin; read from GitHub Secrets
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
     steps:
       - uses: actions/checkout@v5
@@ -127,22 +124,17 @@ jobs:
           server-id: central
           server-username: secrets.MAVEN_SERVER_USERNAME
           server-password: secrets.MAVEN_SERVER_PASSWORD
-
       - name: Import GPG private key
         uses: spectrayan/github-workflows/.github/actions/gpg-import@v1
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-      - name: Configure Git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-      - name: Prepare and Perform Release (release profile)
+      - name: Deploy to Maven Central
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: '-B -P release release:prepare release:perform'
+          goals: '-B -U -pl libs/sse-server -P release clean deploy'
           working-directory: '.'
 
-  # ---------- Publish to GitHub Packages (automatic on main) ----------
+  # ---------- Publish to GitHub Packages (automatic on push to main) ----------
   publish_gpr_npm:
     name: Publish ng-sse-client to GitHub Packages (npm)
     needs: [ng_build_test]
