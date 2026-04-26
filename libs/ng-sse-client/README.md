@@ -1,4 +1,4 @@
-# @spectrayan-sse/ng-sse-client
+# @spectrayan/ng-sse-client
 
 A small, typed, zone-aware Server‑Sent Events (SSE) client for Angular.
 
@@ -14,7 +14,7 @@ A small, typed, zone-aware Server‑Sent Events (SSE) client for Angular.
 
 ## Install
 ```bash
-npm install @spectrayan-sse/ng-sse-client
+npm install @spectrayan/ng-sse-client
 ```
 
 Peer dependencies
@@ -26,7 +26,7 @@ Peer dependencies
 ## Quick start
 ```ts
 import { Component } from '@angular/core';
-import { SseClient } from '@spectrayan-sse/ng-sse-client';
+import { SseClient } from '@spectrayan/ng-sse-client';
 
 @Component({
   selector: 'app-demo',
@@ -64,7 +64,7 @@ sse.stream<any>('http://localhost:8080/sse/general', { parse }).subscribe(v => c
 See `samples/ng-sse-client-app/src/app/app.ts` for a complete demo. Summarized usage:
 
 ```ts
-import { ApiCallbackConfig, SseClient } from '@spectrayan-sse/ng-sse-client';
+import { ApiCallbackConfig, SseClient } from '@spectrayan/ng-sse-client';
 
 // Configure a server-side side-effect to run when a notification arrives
 const markReadCallback: ApiCallbackConfig<{ id: string }> = {
@@ -118,7 +118,7 @@ sse.stream<any>('http://localhost:8080/sse/user', {
 Use the helper `provideSseClient(...)` in your `app.config.ts`:
 ```ts
 import { ApplicationConfig } from '@angular/core';
-import { provideSseClient } from '@spectrayan-sse/ng-sse-client';
+import { provideSseClient } from '@spectrayan/ng-sse-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -134,7 +134,7 @@ export const appConfig: ApplicationConfig = {
 Alternatively, you can still provide the token directly:
 ```ts
 import { ApplicationConfig } from '@angular/core';
-import { SSE_CLIENT_CONFIG } from '@spectrayan-sse/ng-sse-client';
+import { SSE_CLIENT_CONFIG } from '@spectrayan/ng-sse-client';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -217,7 +217,7 @@ export interface SseClientHooks {
 Global hooks via DI:
 ```ts
 import { ApplicationConfig } from '@angular/core';
-import { SSE_CLIENT_CONFIG, SseClientHooks } from '@spectrayan-sse/ng-sse-client';
+import { SSE_CLIENT_CONFIG, SseClientHooks } from '@spectrayan/ng-sse-client';
 
 const hooks: SseClientHooks = {
   onConnect: (url) => console.log('[SSE] connecting to', url),

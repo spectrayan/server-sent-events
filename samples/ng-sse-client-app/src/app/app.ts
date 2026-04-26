@@ -1,6 +1,6 @@
 import { Component, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ApiCallbackConfig, SseClient } from '@spectrayan-sse/ng-sse-client';
+import { ApiCallbackConfig, SseClient } from '@spectrayan/ng-sse-client';
 import { Subscription } from 'rxjs';
 
 type SseStatus = 'connecting' | 'connected' | 'disconnected';

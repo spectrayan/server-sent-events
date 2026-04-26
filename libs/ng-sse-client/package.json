@@ -1,5 +1,5 @@
 {
-  "name": "@spectrayan-sse/ng-sse-client",
+  "name": "@spectrayan/ng-sse-client",
   "version": "0.0.1",
   "description": "Angular SSE client library for Server-Sent Events",
   "license": "Apache-2.0",

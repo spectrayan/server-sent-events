@@ -1,5 +1,5 @@
 {
-  "name": "@spectrayan-sse/source",
+  "name": "@spectrayan/sse",
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {

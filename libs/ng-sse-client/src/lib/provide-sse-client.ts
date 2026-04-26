@@ -6,7 +6,7 @@ import { SSE_CLIENT_CONFIG, SseClientConfig } from './config';
  *
  * Usage in `app.config.ts`:
  * ```ts
- * import { provideSseClient } from '@spectrayan-sse/ng-sse-client';
+ * import { provideSseClient } from '@spectrayan/ng-sse-client';
  *
  * export const appConfig: ApplicationConfig = {
  *   providers: [

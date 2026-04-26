@@ -1,6 +1,6 @@
 # Angular SSE Client Sample App
 
-A minimal Angular application demonstrating how to consume Server‑Sent Events (SSE) using `@spectrayan-sse/ng-sse-client`.
+A minimal Angular application demonstrating how to consume Server‑Sent Events (SSE) using `@spectrayan/ng-sse-client`.
 
 ## Prerequisites
 - Node.js 20+
