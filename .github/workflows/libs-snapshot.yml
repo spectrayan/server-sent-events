@@ -95,5 +95,5 @@ jobs:
       - name: Deploy SNAPSHOT to GitHub Packages
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: "-B -U -pl libs/sse-server -Dmaven.deploy.skip=false -Dgpg.skip=true -DaltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} -DaltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} clean deploy"
+          goals: "-B -U -pl libs/sse-server -Dmaven.deploy.skip=false -Dgpg.skip=true -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} clean deploy"
           working-directory: '.'

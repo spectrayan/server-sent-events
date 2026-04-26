@@ -173,7 +173,7 @@ jobs:
         working-directory: dist/libs/ng-sse-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm publish --registry=https://npm.pkg.github.com
+        run: npm publish --registry=https://npm.pkg.github.com || echo 'Version already published, skipping'
 
   publish_gpr_maven:
     name: Publish sse-server to GitHub Packages (Maven)
@@ -201,5 +201,5 @@ jobs:
       - name: Deploy to GitHub Packages
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: "-B -U -pl libs/sse-server -Dmaven.deploy.skip=false -Dgpg.skip=true -DaltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} -DaltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} deploy"
+          goals: "-B -U -pl libs/sse-server -Dmaven.deploy.skip=false -Dgpg.skip=true -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} deploy"
           working-directory: '.'
