@@ -201,5 +201,5 @@ jobs:
       - name: Deploy to GitHub Packages
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: "-B -U -pl libs/sse-server -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }} deploy"
+          goals: "-B -U -pl libs/sse-server -Dmaven.deploy.skip=false -DaltDeploymentRepository=github::default::https://maven.pkg.github.com/${{ github.repository }} deploy"
           working-directory: '.'
