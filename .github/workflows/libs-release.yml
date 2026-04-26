@@ -170,10 +170,17 @@ jobs:
           working-directory: '.'
           script: 'build'
       - name: Publish to GitHub Packages (npm)
-        working-directory: libs/ng-sse-client
+        working-directory: dist/libs/ng-sse-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # GitHub Packages requires the npm scope to match the GitHub owner.
+          # Remap @spectrayan-sse → @spectrayan for GPR compatibility.
+          node -e "
+            const pkg = require('./package.json');
+            pkg.name = pkg.name.replace('@spectrayan-sse/', '@spectrayan/');
+            require('fs').writeFileSync('./package.json', JSON.stringify(pkg, null, 2));
+          "
           npm publish --registry=https://npm.pkg.github.com
 
   publish_gpr_maven:
