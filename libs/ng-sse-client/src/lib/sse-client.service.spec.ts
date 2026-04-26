@@ -3,6 +3,7 @@ import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { SseClient } from './sse-client';
 import { SSE_CLIENT_CONFIG, SseClientConfig } from './config';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // Simple EventSource mock compatible with EventSourceLike
 class MockEventSource {
@@ -63,7 +64,7 @@ describe('SseClient', () => {
   const originalEventSource = (global as any).EventSource;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     MockEventSource.instances = [];
     (global as any).EventSource = MockEventSource as any;
 
@@ -88,10 +89,10 @@ describe('SseClient', () => {
 
   afterEach(() => {
     (global as any).EventSource = originalEventSource;
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
-  it('should emit parsed JSON from default message events', (done) => {
+  it('should emit parsed JSON from default message events', (done: any) => {
     const url = 'http://test/sse';
     const values: any[] = [];
 
@@ -111,7 +112,7 @@ describe('SseClient', () => {
     es.emitMessage(JSON.stringify({ a: 1 }), 'id-1');
   });
 
-  it('should emit parsed JSON from a named event', (done) => {
+  it('should emit parsed JSON from a named event', (done: any) => {
     const url = 'http://test/sse';
     const sub = service.streamEvent<{ n: string }>(url, 'notice').subscribe({
       next: (v) => {
@@ -127,7 +128,7 @@ describe('SseClient', () => {
     es.emitNamed('notice', JSON.stringify({ n: 'hello' }), 'e-1');
   });
 
-  it('should attempt reconnection on error and continue streaming', (done) => {
+  it('should attempt reconnection on error and continue streaming', (done: any) => {
     const url = 'http://test/sse';
     const results: number[] = [];
 
@@ -152,7 +153,7 @@ describe('SseClient', () => {
     es1.emitError();
 
     // Fast-forward timers to trigger reconnect
-    jest.advanceTimersByTime(10);
+    vi.advanceTimersByTime(10);
 
     const es2 = MockEventSource.instances[1];
     expect(es2).toBeTruthy();

@@ -129,3 +129,4 @@ gradlew.bat
 # Local CLI outputs
 .output.txt
 public.key.asc
+libs/ng-sse-client/node_modules/

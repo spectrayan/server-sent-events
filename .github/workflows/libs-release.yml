@@ -10,7 +10,7 @@ permissions:
   contents: read
   packages: write
 env:
-  NODE_VERSION: '20'
+  NODE_VERSION: '24'
   NPM_VERSION: '11.6.1'
   JAVA_VERSION: '21'
   MAVEN_VERSION: '3.9.9'

@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "build": "nx build ng-sse-client",
-    "test": "nx test ng-sse-client --ci --codeCoverage=false",
+    "test": "nx test ng-sse-client",
     "publish": "npm config set provenance true && nx build ng-sse-client && npm publish --access public --prefix dist/libs/ng-sse-client"
   },
   "private": true,
@@ -20,6 +20,7 @@
     "zone.js": "~0.15.0"
   },
   "devDependencies": {
+    "@analogjs/vitest-angular": "^1.18.0",
     "@angular-devkit/core": "~21.2.0",
     "@angular-devkit/schematics": "~21.2.0",
     "@angular/build": "~21.2.0",
@@ -31,10 +32,11 @@
     "@nx/devkit": "22.7.0",
     "@nx/eslint": "22.7.0",
     "@nx/eslint-plugin": "22.7.0",
-    "@nx/jest": "22.7.0",
     "@nx/js": "22.7.0",
     "@nx/maven": "^22.7.0",
     "@nx/playwright": "22.7.0",
+    "@nx/vite": "22.7.0",
+    "@nx/vitest": "^22.7.0",
     "@nx/web": "22.7.0",
     "@nx/workspace": "22.7.0",
     "@playwright/test": "^1.36.0",
@@ -42,24 +44,20 @@
     "@swc-node/register": "~1.9.1",
     "@swc/core": "~1.5.7",
     "@swc/helpers": "~0.5.11",
-    "@types/jest": "^29.5.12",
     "@types/node": "18.16.9",
     "@typescript-eslint/utils": "^8.40.0",
     "angular-eslint": "^21.2.0",
     "eslint": "^9.8.0",
     "eslint-config-prettier": "^10.0.0",
     "eslint-plugin-playwright": "^1.6.2",
-    "jest": "^29.7.0",
-    "jest-environment-jsdom": "^29.7.0",
-    "jest-preset-angular": "~14.6.1",
-    "jest-util": "^29.7.0",
+    "jsdom": "^29.0.2",
     "ng-packagr": "^21.2.0",
     "nx": "^22.7.0",
     "prettier": "^2.6.2",
-    "ts-jest": "^29.1.0",
     "ts-node": "10.9.1",
     "tslib": "^2.3.0",
     "typescript": "~5.9.2",
-    "typescript-eslint": "^8.40.0"
+    "typescript-eslint": "^8.40.0",
+    "vitest": "^3.2.1"
   }
 }
