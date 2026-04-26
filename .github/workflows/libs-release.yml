@@ -25,7 +25,7 @@ jobs:
     name: Angular ng-sse-client • build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Node
         uses: spectrayan/github-workflows/.github/actions/node-setup@v1
         with:
@@ -54,7 +54,7 @@ jobs:
     name: Java sse-server • build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -82,7 +82,7 @@ jobs:
       contents: read
       id-token: write # for npm provenance (optional)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Node
         uses: spectrayan/github-workflows/.github/actions/node-setup@v1
         with:
@@ -113,7 +113,7 @@ jobs:
       # Needed by Maven GPG plugin; read from GitHub Secrets
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -132,6 +132,10 @@ jobs:
         uses: spectrayan/github-workflows/.github/actions/gpg-import@v1
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Prepare and Perform Release (release profile)
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
@@ -148,7 +152,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Node for GitHub Packages
         uses: spectrayan/github-workflows/.github/actions/node-setup@v1
         with:
@@ -181,7 +185,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:

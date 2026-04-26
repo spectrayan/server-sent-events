@@ -23,7 +23,7 @@ jobs:
     name: Java sse-server • build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -78,7 +78,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:

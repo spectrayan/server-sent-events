@@ -128,3 +128,4 @@ gradlew.bat
 
 # Local CLI outputs
 .output.txt
+public.key.asc

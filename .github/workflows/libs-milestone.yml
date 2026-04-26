@@ -42,7 +42,7 @@ jobs:
     name: Verify Java sse-server
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Setup Java
@@ -68,7 +68,7 @@ jobs:
     env:
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
       - name: Setup Java
@@ -88,6 +88,10 @@ jobs:
         uses: spectrayan/github-workflows/.github/actions/gpg-import@v1
         with:
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+      - name: Configure Git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
       - name: Release (prepare + perform)
         if: ${{ inputs.dryRun == false }}
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
