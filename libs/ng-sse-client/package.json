@@ -1,21 +1,28 @@
 {
   "name": "@spectrayan/ng-sse-client",
   "version": "0.0.1",
-  "description": "Angular SSE client library for Server-Sent Events",
+  "description": "Typed, zone-aware Server-Sent Events (SSE) client for Angular. Features auto-reconnect with exponential backoff, named event support, lastEventId resumption, optional event-driven API callbacks with retry, and lifecycle hooks. Runs network I/O outside NgZone for performance.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/spectrayan/server-sent-events.git"
+    "url": "git+https://github.com/spectrayan/server-sent-events.git",
+    "directory": "libs/ng-sse-client"
   },
   "bugs": {
     "url": "https://github.com/spectrayan/server-sent-events/issues"
   },
-  "homepage": "https://github.com/spectrayan/server-sent-events#readme",
+  "homepage": "https://github.com/spectrayan/server-sent-events/tree/main/libs/ng-sse-client#readme",
   "keywords": [
     "angular",
     "sse",
     "server-sent-events",
-    "eventsource"
+    "eventsource",
+    "reactive",
+    "rxjs",
+    "streaming",
+    "real-time",
+    "reconnection",
+    "zone-aware"
   ],
   "sideEffects": false,
   "peerDependencies": {

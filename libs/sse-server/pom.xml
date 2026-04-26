@@ -9,7 +9,7 @@
     </parent>
     <artifactId>sse-server</artifactId>
     <name>sse-server</name>
-    <description>Reactive SSE server utilities for Spring WebFlux</description>
+    <description>Opinionated, auto-configured Server-Sent Events (SSE) library for Spring Boot / WebFlux. Provides a reactive SseEmitter service for topic-based streaming, heartbeat keep-alive, configurable headers, MDC propagation, and a ready-to-use controller that exposes /{topic} SSE endpoints out of the box. Requires Java 21+ and Spring Boot 3.x.</description>
     <url>https://github.com/spectrayan/server-sent-events</url>
     <licenses>
         <license>
