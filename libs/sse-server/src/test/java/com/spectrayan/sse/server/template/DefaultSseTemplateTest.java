@@ -224,7 +224,12 @@ class DefaultSseTemplateTest {
 
         // Stream customizer that tags data with prefix
         SseStreamCustomizer customizer = (topic, exchange, stream) ->
-                stream.map(sse -> ServerSentEvent.builder((Object)("tag-" + sse.data())).event(sse.event()).id(sse.id()).build());
+                stream.map(sse -> {
+                    var b = ServerSentEvent.builder((Object)("tag-" + String.valueOf(sse.data())));
+                    if (sse.event() != null) b = b.event(sse.event());
+                    if (sse.id() != null) b = b.id(sse.id());
+                    return b.build();
+                });
 
         // ObjectProvider that returns our single customizer
         ObjectProvider<SseStreamCustomizer> customProvider = new ObjectProvider<>() {

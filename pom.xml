@@ -4,13 +4,13 @@
 
   <groupId>com.spectrayan.sse</groupId>
   <artifactId>spectrayan-sse-parent</artifactId>
-  <version>1.0.0</version>
+  <version>1.1.0</version>
   <packaging>pom</packaging>
 
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.0</version>
+    <version>4.0.6</version>
     <relativePath />
   </parent>
 
