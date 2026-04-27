@@ -68,7 +68,7 @@ jobs:
       - name: Build & test sse-server
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: '-B -U -pl libs/sse-server verify'
+          goals: '-B -U verify'
           working-directory: '.'
 
   # ---------- Publish to npm (manual only) ----------
@@ -131,7 +131,7 @@ jobs:
       - name: Deploy to Maven Central
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: '-B -U -pl libs/sse-server -P release clean deploy'
+          goals: '-B -U -P release clean deploy'
           working-directory: '.'
 
   # ---------- Publish to GitHub Packages (automatic on push to main) ----------
@@ -200,7 +200,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
-          mvn -B -U -pl libs/sse-server -Dmaven.deploy.skip=false -Dgpg.skip=true 
-          -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
-          -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
+          mvn -B -U -Dmaven.deploy.skip=false -Dgpg.skip=true 
+          -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/spectrayan/spectrayan 
+          -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/spectrayan/spectrayan 
           deploy || echo 'Version already published, skipping'
