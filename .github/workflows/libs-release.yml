@@ -201,6 +201,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           mvn -B -U -Dmaven.deploy.skip=false -Dgpg.skip=true 
-          -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/spectrayan/spectrayan 
-          -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/spectrayan/spectrayan 
+          -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
+          -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
           deploy || echo 'Version already published, skipping'
