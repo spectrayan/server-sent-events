@@ -24,7 +24,7 @@ class DefaultSseEmitterIntegrationTest {
 
     private DefaultSseEmitter newEmitter() {
         SseServerProperties props = new SseServerProperties();
-        return new DefaultSseEmitter(props, emptyProvider(), emptyProvider(), (exchange, topic) -> "sid");
+        return new DefaultSseEmitter(props, emptyProvider(), emptyProvider(), (exchange, topic) -> "sid", null);
     }
 
     @Test

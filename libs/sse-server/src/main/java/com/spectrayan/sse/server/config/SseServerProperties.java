@@ -46,6 +46,9 @@ public class SseServerProperties {
     // CORS configuration
     private Cors cors = new Cors();
 
+    // Metrics configuration
+    private Metrics metrics = new Metrics();
+
     public void setHeaders(List<SseHeader> headers) {
         this.headers = (headers != null ? headers : new ArrayList<>());
     }
@@ -77,6 +80,8 @@ public class SseServerProperties {
 
         /** When errors happen on the stream, map to SSE error events instead of terminating */
         private boolean mapErrorsToSse = true;
+        /** Name of the query parameter to read Last-Event-ID from on reconnect. Default: 'lastEventId' */
+        private String lastEventIdParamName = "lastEventId";
     }
 
     @Data
@@ -85,6 +90,8 @@ public class SseServerProperties {
         private String pattern = "^[A-Za-z0-9._-]+$";
         /** Max subscribers per topic (<=0 means unlimited) */
         private int maxSubscribers = 0;
+        /** Time a topic with 0 subscribers is kept before automatic removal. Null = no cleanup. */
+        private Duration idleTtl = null;
     }
 
     @Data
@@ -123,5 +130,13 @@ public class SseServerProperties {
         private Duration maxAge = Duration.ofHours(1);
         /** Optional path pattern override. If blank, will default to base path + "/**". */
         private String pathPattern;
+    }
+
+    @Data
+    public static class Metrics {
+        /** Enable SSE-specific Micrometer metrics. Only active when Micrometer is on classpath. */
+        private boolean enabled = true;
+        /** Tag counters with per-topic labels. Disable if topic cardinality is very high. */
+        private boolean perTopic = true;
     }
 }

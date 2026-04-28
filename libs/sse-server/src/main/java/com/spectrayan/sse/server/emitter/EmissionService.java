@@ -26,6 +26,17 @@ final class EmissionService {
 
     private static final Logger log = LoggerFactory.getLogger(EmissionService.class);
 
+    private final com.spectrayan.sse.server.metrics.SseMetrics metrics;
+
+    /**
+     * Create a new EmissionService.
+     *
+     * @param metrics optional SSE metrics recorder; may be {@code null}
+     */
+    EmissionService(com.spectrayan.sse.server.metrics.SseMetrics metrics) {
+        this.metrics = metrics;
+    }
+
     /**
      * Emit a single {@link ServerSentEvent} to a specific topic.
      * <p>
@@ -55,8 +66,10 @@ final class EmissionService {
         }
         Sinks.EmitResult result = channel.sink.tryEmitNext(builder.build());
         if (result.isFailure()) {
+            if (metrics != null) metrics.recordEmitFailure(topicId);
             throw mapEmitFailure(topicId, result, eventName, id);
         }
+        if (metrics != null) metrics.recordEmit(topicId);
     }
 
 /**

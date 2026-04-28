@@ -149,7 +149,19 @@ public class SseEndpointHandler {
         ServerWebExchange exchange = request.exchange();
         String remote = exchange.getRequest().getRemoteAddress() != null ? exchange.getRequest().getRemoteAddress().toString() : "unknown";
 
-        return exchange.getSession()
+        // Extract Last-Event-ID: header first, then query param fallback
+        String lastEventId = exchange.getRequest().getHeaders().getFirst("Last-Event-ID");
+        if (lastEventId == null || lastEventId.isBlank()) {
+            lastEventId = exchange.getRequest().getQueryParams().getFirst(props.getStream().getLastEventIdParamName());
+        }
+        final String resolvedLastEventId = lastEventId;
+
+        // Extract authenticated principal from SecurityContext
+        Mono<String> principalMono = exchange.getPrincipal()
+                .map(java.security.Principal::getName)
+                .defaultIfEmpty("");
+
+        return principalMono.flatMap(principal -> exchange.getSession()
                 .map(ws -> ws != null ? ws.getId() : "")
                 .filter(id -> id != null && !id.isBlank())
                 .switchIfEmpty(reactor.core.publisher.Mono.fromSupplier(() -> sessionIdGenerator != null ? sessionIdGenerator.generate(exchange, topic) : java.util.UUID.randomUUID().toString()))
@@ -161,8 +173,8 @@ public class SseEndpointHandler {
                         log.debug("Failed to publish SseSessionCreatedEvent: {}", t.toString());
                     }
 
-                    // Build the core behavior supplier (same as controller)
-                    Supplier<Flux<ServerSentEvent<Object>>> core = () -> buildFlux(sessionId, topic, remote, exchange);
+                    // Build the core behavior supplier
+                    Supplier<Flux<ServerSentEvent<Object>>> core = () -> buildFlux(sessionId, topic, remote, exchange, principal, resolvedLastEventId);
 
                     // Wrap with endpoint customizers (outermost first)
                     Supplier<Flux<ServerSentEvent<Object>>> chain = core;
@@ -176,7 +188,7 @@ public class SseEndpointHandler {
                     return ServerResponse.ok()
                             .contentType(MediaType.TEXT_EVENT_STREAM)
                             .body(flux, ServerSentEvent.class);
-                });
+                }));
     }
 
     /**
@@ -204,7 +216,7 @@ public class SseEndpointHandler {
          * @param exchange the current {@link ServerWebExchange}
          * @return a composed {@link Flux} of {@link ServerSentEvent} items ready to be written as SSE
          */
-        private Flux<ServerSentEvent<Object>> buildFlux(String sessionId, String topic, String remote, ServerWebExchange exchange) {
+        private Flux<ServerSentEvent<Object>> buildFlux(String sessionId, String topic, String remote, ServerWebExchange exchange, String principal, String lastEventId) {
         var request = exchange.getRequest();
 
         // Apply configured response headers (static + copy from request) via handler
@@ -223,6 +235,8 @@ public class SseEndpointHandler {
         SseSession session = SseSession.builder()
                 .sessionId(sessionId)
                 .topic(topic)
+                .principal(principal != null && !principal.isBlank() ? principal : null)
+                .lastEventId(lastEventId)
                 .remoteAddress(remote)
                 .userAgent(userAgent)
                 .build();

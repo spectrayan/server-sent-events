@@ -23,7 +23,7 @@ class EmissionServiceTest {
         props = new SseServerProperties();
         sinkFactory = new SinkFactory(props, null);
         topicManager = new TopicManager(sinkFactory);
-        emissionService = new EmissionService();
+        emissionService = new EmissionService(null);
     }
 
     @Test
