@@ -1,5 +1,8 @@
 import { InjectionToken } from '@angular/core';
 
+/** Transport strategy for SSE connections. */
+export type SseTransport = 'eventsource' | 'fetch';
+
 export interface SseReconnectionConfig {
   enabled: boolean;
   /** Number of reconnection attempts. -1 for infinite. Default: -1 */
@@ -34,6 +37,24 @@ export interface SseClientConfig {
   url: string;
   /** Whether to include credentials (cookies, auth) */
   withCredentials?: boolean;
+  /**
+   * Transport to use for SSE connections.
+   * - `'eventsource'` (default): native browser EventSource API. Simple, auto-reconnects,
+   *   but **cannot send custom headers** (e.g. Authorization).
+   * - `'fetch'`: uses `fetch()` + `ReadableStream`. Supports custom headers.
+   *   Reconnection is handled by the library.
+   */
+  transport?: SseTransport;
+  /**
+   * Custom HTTP headers to send with the SSE request.
+   * **Only used with `transport: 'fetch'`** — native EventSource ignores headers.
+   *
+   * @example
+   * ```ts
+   * headers: { 'Authorization': 'Bearer eyJ...' }
+   * ```
+   */
+  headers?: Record<string, string>;
   /** Custom event names to subscribe to in addition to the default "message" */
   events?: string[];
   /** Optional parser for incoming event data. Default: JSON.parse */
@@ -89,6 +110,8 @@ export const DEFAULT_RECONNECTION_CONFIG: SseReconnectionConfig = {
 
 export const DEFAULT_SSE_CLIENT_CONFIG: Readonly<Required<Omit<SseClientConfig, 'url'>>> = {
   withCredentials: false,
+  transport: 'eventsource',
+  headers: {},
   events: [],
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   parse: (data: string) => JSON.parse(data),

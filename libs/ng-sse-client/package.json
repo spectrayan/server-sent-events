@@ -1,6 +1,6 @@
 {
   "name": "@spectrayan/ng-sse-client",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Typed, zone-aware Server-Sent Events (SSE) client for Angular. Features auto-reconnect with exponential backoff, named event support, lastEventId resumption, optional event-driven API callbacks with retry, and lifecycle hooks. Runs network I/O outside NgZone for performance.",
   "license": "Apache-2.0",
   "repository": {
