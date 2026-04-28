@@ -151,6 +151,7 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           npm-version: ${{ env.NPM_VERSION }}
           registry-url: 'https://npm.pkg.github.com'
+          scope: '@spectrayan'
       - name: Install dependencies
         uses: spectrayan/github-workflows/.github/actions/npm-install@v1
         with:
@@ -161,11 +162,15 @@ jobs:
         with:
           working-directory: '.'
           script: 'build'
-      - name: Publish to GitHub Packages (npm)
+      - name: Configure .npmrc for npm-public repo
+        run: |
+          echo "@spectrayan:registry=https://npm.pkg.github.com/spectrayan" > dist/libs/ng-sse-client/.npmrc
+          echo "//npm.pkg.github.com/:_authToken=${{ secrets.GITHUB_TOKEN }}" >> dist/libs/ng-sse-client/.npmrc
+      - name: Publish to GitHub Packages (npm-public)
         working-directory: dist/libs/ng-sse-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm publish --registry=https://npm.pkg.github.com || echo 'Version already published, skipping'
+        run: npm publish --registry=https://npm.pkg.github.com/spectrayan || echo 'Version already published, skipping'
 
   publish_gpr_maven:
     name: Publish sse-server to GitHub Packages (Maven)
@@ -189,18 +194,18 @@ jobs:
           <settings>
             <servers>
               <server>
-                <id>github</id>
+                <id>github-maven-public</id>
                 <username>${env.GITHUB_ACTOR}</username>
                 <password>${env.GITHUB_TOKEN}</password>
               </server>
             </servers>
           </settings>
           EOF
-      - name: Deploy to GitHub Packages
+      - name: Deploy to GitHub Packages (maven-public)
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: >
           mvn -B -U -Dmaven.deploy.skip=false -Dgpg.skip=true 
-          -DmavenAltDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
-          -DmavenAltSnapshotDeploymentRepository=github::https://maven.pkg.github.com/${{ github.repository }} 
+          -DmavenAltDeploymentRepository=github-maven-public::https://maven.pkg.github.com/spectrayan/maven-public 
+          -DmavenAltSnapshotDeploymentRepository=github-maven-public::https://maven.pkg.github.com/spectrayan/maven-public 
           deploy || echo 'Version already published, skipping'
