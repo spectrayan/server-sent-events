@@ -26,23 +26,35 @@ final class EmissionService {
 
     private static final Logger log = LoggerFactory.getLogger(EmissionService.class);
 
+    /**
+     * Default number of retry attempts for serialization contention, used when
+     * no value is specified via configuration.
+     */
+    static final int DEFAULT_EMIT_RETRIES = 16;
+
     private final com.spectrayan.sse.server.metrics.SseMetrics metrics;
+    private final int maxEmitRetries;
 
     /**
      * Create a new EmissionService.
      *
      * @param metrics optional SSE metrics recorder; may be {@code null}
+     * @param maxEmitRetries maximum retry attempts on {@code FAIL_NON_SERIALIZED};
+     *                       0 to disable retry (fail immediately on contention)
      */
-    EmissionService(com.spectrayan.sse.server.metrics.SseMetrics metrics) {
+    EmissionService(com.spectrayan.sse.server.metrics.SseMetrics metrics, int maxEmitRetries) {
         this.metrics = metrics;
+        this.maxEmitRetries = Math.max(0, maxEmitRetries);
     }
 
     /**
      * Emit a single {@link ServerSentEvent} to a specific topic.
      * <p>
      * The event is constructed from the provided {@code payload}, optional {@code eventName}, and optional {@code id}.
-     * The emission is performed using the topic's Reactor {@link Sinks.Many} sink with {@code tryEmitNext} to avoid
-     * blocking. On failure, the {@link Sinks.EmitResult} is mapped to a domain specific
+     * The emission uses a two-phase strategy: first attempt with {@code tryEmitNext} for the fast path,
+     * and on {@link Sinks.EmitResult#FAIL_NON_SERIALIZED FAIL_NON_SERIALIZED} (concurrent emit contention on
+     * serialized sinks such as REPLAY), retries up to the configured {@code emitRetries} times with
+     * {@link Thread#onSpinWait()} between attempts. All other failures are mapped to a domain-specific
      * {@link com.spectrayan.sse.server.error.EmissionRejectedException}.
      *
      * @param topicManager access to topic channels
@@ -64,7 +76,8 @@ final class EmissionService {
         if (log.isDebugEnabled()) {
             log.debug("Emitting to topic {} eventName={} id={} payload={}", topicId, eventName, id, describePayload(payload));
         }
-        Sinks.EmitResult result = channel.sink.tryEmitNext(builder.build());
+        ServerSentEvent<Object> event = builder.build();
+        Sinks.EmitResult result = emitWithSerializationRetry(channel.sink, event, topicId);
         if (result.isFailure()) {
             if (metrics != null) metrics.recordEmitFailure(topicId);
             throw mapEmitFailure(topicId, result, eventName, id);
@@ -72,11 +85,11 @@ final class EmissionService {
         if (metrics != null) metrics.recordEmit(topicId);
     }
 
-/**
+    /**
      * Broadcast a single event to all currently active topics.
      * <p>
-     * A single {@link ServerSentEvent} instance is created once and offered to each topic's sink using
-     * {@code tryEmitNext}. This is best‑effort: any individual topic rejection is logged at WARN level,
+     * A single {@link ServerSentEvent} instance is created once and offered to each topic's sink.
+     * This is best‑effort: any individual topic rejection is logged at WARN level,
      * but does not prevent attempts for the remaining topics.
      *
      * @param topicManager access to topic channels
@@ -96,11 +109,52 @@ final class EmissionService {
         for (String id : ids) {
             TopicChannel ch = topicManager.get(id);
             if (ch == null) continue;
-            Sinks.EmitResult res = ch.sink.tryEmitNext(event);
+            Sinks.EmitResult res = emitWithSerializationRetry(ch.sink, event, id);
             if (res.isFailure()) {
                 log.warn("Broadcast emit rejected for topic {} result={}", id, res);
             }
         }
+    }
+
+    /**
+     * Attempt to emit an event to a sink, retrying up to the configured {@code maxEmitRetries} times
+     * on {@link Sinks.EmitResult#FAIL_NON_SERIALIZED FAIL_NON_SERIALIZED}.
+     * <p>
+     * Serialized sinks (e.g. REPLAY) return {@code FAIL_NON_SERIALIZED} when another thread is
+     * concurrently emitting. The contention window is typically nanoseconds, so a short spin-retry
+     * is the correct strategy. {@link Thread#onSpinWait()} is used between attempts to hint the CPU
+     * to optimize for the spin-wait pattern (e.g. reduce power, yield to hyper-threading sibling).
+     * <p>
+     * If a non-serialization failure occurs during retry (e.g. the sink transitions to
+     * {@code FAIL_TERMINATED}), the retry loop exits immediately with that result, ensuring the
+     * caller can handle it explicitly rather than silently dropping the event.
+     *
+     * @param sink the Reactor sink to emit to
+     * @param event the SSE event to emit
+     * @param topicId topic identifier for logging
+     * @return the final {@link Sinks.EmitResult} — either {@code OK} or the failure that exhausted retries
+     */
+    private Sinks.EmitResult emitWithSerializationRetry(
+            Sinks.Many<ServerSentEvent<Object>> sink,
+            ServerSentEvent<Object> event,
+            String topicId) {
+        Sinks.EmitResult result = sink.tryEmitNext(event);
+        if (result != Sinks.EmitResult.FAIL_NON_SERIALIZED || maxEmitRetries == 0) {
+            return result;
+        }
+        // Serialization contention — bounded retry with spin-wait
+        for (int attempt = 1; attempt <= maxEmitRetries; attempt++) {
+            Thread.onSpinWait();
+            result = sink.tryEmitNext(event);
+            if (result != Sinks.EmitResult.FAIL_NON_SERIALIZED) {
+                if (attempt > 1 && log.isDebugEnabled()) {
+                    log.debug("Serialization contention on topic {} resolved after {} retries", topicId, attempt);
+                }
+                return result;
+            }
+        }
+        log.warn("Serialization contention on topic {} not resolved after {} retries", topicId, maxEmitRetries);
+        return result;
     }
 
     /**

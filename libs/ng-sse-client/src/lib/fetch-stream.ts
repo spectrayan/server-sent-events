@@ -218,6 +218,7 @@ async function readSseStream<T>(
               try {
                 const parsed = config.parse<T>(rawData);
                 processEventData(parsed, type);
+                zone.run(() => subscriber.next(parsed));
               } catch (e) {
                 zone.run(() => subscriber.error(e));
                 return;

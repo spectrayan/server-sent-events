@@ -86,7 +86,7 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
         this.topicManager = new TopicManager(this.sinkFactory);
         this.streamComposer = new StreamComposer(properties);
         this.sessionTracker = new SessionTracker(this.sessionHooks, this.topicManager, metrics);
-        this.emissionService = new EmissionService(metrics);
+        this.emissionService = new EmissionService(metrics, properties.getEmitter().getEmitRetries());
     }
 
 

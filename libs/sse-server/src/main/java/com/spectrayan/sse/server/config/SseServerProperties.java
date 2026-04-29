@@ -100,6 +100,15 @@ public class SseServerProperties {
         private SinkType sinkType = SinkType.MULTICAST;
         /** Replay size when using REPLAY sink */
         private int replaySize = 0;
+        /**
+         * Maximum number of retry attempts when a concurrent emit causes
+         * {@code FAIL_NON_SERIALIZED} on a serialized Reactor sink.
+         * <p>
+         * The contention window is typically nanoseconds, so 16 spin-wait
+         * retries is sufficient for any realistic workload. Set to 0 to
+         * disable retry (fail immediately on contention).
+         */
+        private int emitRetries = 16;
     }
 
     public enum SinkType { MULTICAST, REPLAY }
