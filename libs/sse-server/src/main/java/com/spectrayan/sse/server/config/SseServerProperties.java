@@ -98,17 +98,37 @@ public class SseServerProperties {
     public static class Emitter {
         /** Sink type: multicast or replay */
         private SinkType sinkType = SinkType.MULTICAST;
-        /** Replay size when using REPLAY sink */
-        private int replaySize = 0;
+        /**
+         * Replay buffer size when using REPLAY sink. Determines how many past events
+         * a reconnecting subscriber can catch up on.
+         * <p>
+         * Set to 0 for unbounded replay (keeps all events in memory — OOM risk for
+         * long-lived topics). Default: 256.
+         */
+        private int replaySize = 256;
         /**
          * Maximum number of retry attempts when a concurrent emit causes
          * {@code FAIL_NON_SERIALIZED} on a serialized Reactor sink.
          * <p>
          * The contention window is typically nanoseconds, so 16 spin-wait
          * retries is sufficient for any realistic workload. Set to 0 to
-         * disable retry (fail immediately on contention).
+         * disable retry (fail immediately on contention). Values above
+         * {@value #MAX_EMIT_RETRIES} are clamped to that ceiling to prevent
+         * misconfiguration causing CPU-bound spinning.
          */
-        private int emitRetries = 16;
+        private int emitRetries = DEFAULT_EMIT_RETRIES;
+
+        /** Default retry count when not configured. */
+        public static final int DEFAULT_EMIT_RETRIES = 16;
+        /** Absolute ceiling to prevent misconfigured spin loops. */
+        public static final int MAX_EMIT_RETRIES = 128;
+
+        /**
+         * Set emit retries, clamping to the valid range {@code [0, MAX_EMIT_RETRIES]}.
+         */
+        public void setEmitRetries(int emitRetries) {
+            this.emitRetries = Math.max(0, Math.min(emitRetries, MAX_EMIT_RETRIES));
+        }
     }
 
     public enum SinkType { MULTICAST, REPLAY }

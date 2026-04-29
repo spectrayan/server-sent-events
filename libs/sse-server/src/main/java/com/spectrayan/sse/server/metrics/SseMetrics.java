@@ -41,6 +41,7 @@ public class SseMetrics {
     private final Counter globalEmitSuccess;
     private final Counter globalEmitFailure;
     private final Counter globalConnections;
+    private final Counter globalDisconnections;
 
     /**
      * Create SSE metrics and register gauges/counters with the provided MeterRegistry.
@@ -77,6 +78,10 @@ public class SseMetrics {
 
         this.globalConnections = Counter.builder("sse.connections")
              .description("Total SSE connections opened")
+             .register(meters);
+
+        this.globalDisconnections = Counter.builder("sse.disconnections")
+             .description("Total SSE connections closed")
              .register(meters);
 
         log.info("SSE metrics registered (perTopic={})", perTopic);
@@ -130,6 +135,37 @@ public class SseMetrics {
                        .tag("topic", t)
                        .register(meters)
             ).increment();
+        }
+    }
+
+    /**
+     * Record an SSE disconnection.
+     *
+     * @param topic the topic the client disconnected from
+     */
+    public void recordDisconnection(String topic) {
+        globalDisconnections.increment();
+    }
+
+    /**
+     * Clean up per-topic counters and remove their Micrometer registrations
+     * when a topic is destroyed. Prevents memory leaks when topic names are
+     * dynamic (e.g., per-user topics).
+     *
+     * @param topic the topic being removed
+     */
+    public void removeTopic(String topic) {
+        if (!perTopic || topic == null) return;
+        removeAndClose(emitSuccessCounters, topic);
+        removeAndClose(emitFailureCounters, topic);
+        removeAndClose(connectionCounters, topic);
+        log.debug("Cleaned up per-topic metrics for: {}", topic);
+    }
+
+    private void removeAndClose(ConcurrentHashMap<String, Counter> map, String topic) {
+        Counter counter = map.remove(topic);
+        if (counter != null) {
+            meters.remove(counter.getId());
         }
     }
 }

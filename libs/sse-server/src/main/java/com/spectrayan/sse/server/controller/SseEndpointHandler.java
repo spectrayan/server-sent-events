@@ -81,6 +81,7 @@ public class SseEndpointHandler {
     private final List<SseEndpointCustomizer> endpointCustomizers;
     private final org.springframework.context.ApplicationEventPublisher eventPublisher;
     private final com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator;
+    private final SseStreamOrchestrator orchestrator;
 
     /**
          * Create a new {@code SseEndpointHandler}.
@@ -122,6 +123,7 @@ public class SseEndpointHandler {
         this.endpointCustomizers = endpointCustomizers.orderedStream().toList();
         this.eventPublisher = eventPublisher;
         this.sessionIdGenerator = sessionIdGenerator;
+        this.orchestrator = new SseStreamOrchestrator(sseEmitter, props, eventPublisher, this.streamCustomizers);
     }
 
     /**
@@ -133,13 +135,13 @@ public class SseEndpointHandler {
          *   otherwise generate one via the configured {@link com.spectrayan.sse.server.customize.SessionIdGenerator}
          *   (falling back to a random UUID if no generator is configured).
          * - Publish {@code SseSessionCreatedEvent} before stream construction.
-         * - Build the stream by invoking {@link #buildFlux(String, String, String, ServerWebExchange)} and wrap it with
+         * - Build the stream by invoking {@code buildFlux} and wrap it with
          *   any registered {@link com.spectrayan.sse.server.customize.SseEndpointCustomizer}s (outermost first).
          * - Return a {@link ServerResponse} with content type {@link MediaType#TEXT_EVENT_STREAM} whose body is the
          *   resulting {@link Flux} of {@link ServerSentEvent}s.
          * <p>
          * Error handling and mapping to SSE (when enabled) as well as retry line emission and MDC context population
-         * happen inside {@link #buildFlux(String, String, String, ServerWebExchange)}.
+         * happen inside the {@link SseStreamOrchestrator}.
          *
          * @param request the incoming functional {@link ServerRequest}
          * @return a {@link Mono} that emits the {@link ServerResponse} configured for SSE streaming
@@ -185,53 +187,41 @@ public class SseEndpointHandler {
                     }
 
                     Flux<ServerSentEvent<Object>> flux = chain.get();
+
+                    // Apply headers inside the response builder so they aren't
+                    // overwritten by ServerResponse.ok() (fixes header timing issue).
                     return ServerResponse.ok()
                             .contentType(MediaType.TEXT_EVENT_STREAM)
+                            .headers(httpHeaders -> {
+                                headerHandler.applyResponseHeaders(exchange);
+                                for (SseHeaderCustomizer c : headerCustomizers) {
+                                    try {
+                                        c.customize(exchange, httpHeaders);
+                                    } catch (Throwable t) {
+                                        log.warn("Header customizer {} failed: {}", c.getClass().getSimpleName(), t.toString());
+                                    }
+                                }
+                            })
                             .body(flux, ServerSentEvent.class);
                 }));
     }
 
     /**
-         * Build the {@link Flux} of {@link ServerSentEvent} for a resolved session/topic.
-         * <p>
-         * Processing pipeline:
-         * - Applies configured response headers via {@link SseHeaderHandler} and then invokes any
-         *   registered {@link SseHeaderCustomizer}s (ordered).
-         * - Logs subscription and publishes lifecycle events on subscribe and termination:
-         *   {@code SseSubscribedEvent} on subscribe; {@code SseUnsubscribedEvent} on cancel; {@code SseSessionClosedEvent}
-         *   on completion.
-         * - Delegates to {@link SseEmitter#connect(String, com.spectrayan.sse.server.session.SseSession)} to obtain
-         *   the core stream for the topic and session.
-         * - Optionally prepends a single {@code retry: <millis>} line when enabled via properties.
-         * - When {@code stream.mapErrorsToSse=true}, logs the error, publishes {@code SseDisconnectedEvent}, and
-         *   maps the error to a structured SSE via {@link ErrorEvents}.
-         * - Enriches Reactor context with MDC activation flag and keys: {@code topic}, {@code sessionId}, {@code remoteAddress}.
-         * - Applies ordered {@link SseStreamCustomizer}s to allow downstream transformation of the stream.
-         *
-         * This method is internal to the handler; external callers should use {@link #handle(ServerRequest)}.
-         *
-         * @param sessionId resolved or generated session identifier
-         * @param topic the topic path variable determining which stream to subscribe to
-         * @param remote a textual representation of the remote address (for logging/events)
-         * @param exchange the current {@link ServerWebExchange}
-         * @return a composed {@link Flux} of {@link ServerSentEvent} items ready to be written as SSE
-         */
-        private Flux<ServerSentEvent<Object>> buildFlux(String sessionId, String topic, String remote, ServerWebExchange exchange, String principal, String lastEventId) {
-        var request = exchange.getRequest();
-
-        // Apply configured response headers (static + copy from request) via handler
-        headerHandler.applyResponseHeaders(exchange);
-        // Allow custom header mutations
-        for (SseHeaderCustomizer c : headerCustomizers) {
-            try {
-                c.customize(exchange, exchange.getResponse().getHeaders());
-            } catch (Throwable t) {
-                log.warn("Header customizer {} failed: {}", c.getClass().getSimpleName(), t.toString());
-            }
-        }
-
-        log.info("SSE subscription requested (router): topic={} from {}", topic, remote);
-        String userAgent = request.getHeaders().getFirst("User-Agent");
+     * Build the {@link Flux} of {@link ServerSentEvent} for a resolved session/topic.
+     * <p>
+     * Delegates core stream construction (lifecycle events, retry, error mapping,
+     * MDC context enrichment, and stream customizers) to {@link SseStreamOrchestrator}.
+     *
+     * @param sessionId   resolved or generated session identifier
+     * @param topic       the topic path variable
+     * @param remote      textual representation of the remote address
+     * @param exchange    the current {@link ServerWebExchange}
+     * @param principal   the authenticated principal name (empty string if anonymous)
+     * @param lastEventId the Last-Event-ID header value, if any
+     * @return a composed {@link Flux} of {@link ServerSentEvent} items
+     */
+    private Flux<ServerSentEvent<Object>> buildFlux(String sessionId, String topic, String remote, ServerWebExchange exchange, String principal, String lastEventId) {
+        String userAgent = exchange.getRequest().getHeaders().getFirst("User-Agent");
         SseSession session = SseSession.builder()
                 .sessionId(sessionId)
                 .topic(topic)
@@ -240,68 +230,8 @@ public class SseEndpointHandler {
                 .remoteAddress(remote)
                 .userAgent(userAgent)
                 .build();
-        Flux<ServerSentEvent<Object>> flux = sseEmitter.connect(topic, session)
-                .doOnSubscribe(s -> {
-                    log.debug("SSE stream subscribed: topic={} from {}", topic, remote);
-                    try {
-                        eventPublisher.publishEvent(new com.spectrayan.sse.server.events.SseSubscribedEvent(sessionId, topic, remote));
-                    } catch (Throwable t) {
-                        log.debug("Failed to publish SseSubscribedEvent: {}", t.toString());
-                    }
-                })
-                .doFinally(sig -> {
-                    try {
-                        switch (sig) {
-                            case CANCEL -> eventPublisher.publishEvent(new com.spectrayan.sse.server.events.SseUnsubscribedEvent(sessionId, topic, remote));
-                            case ON_COMPLETE -> eventPublisher.publishEvent(new com.spectrayan.sse.server.events.SseSessionClosedEvent(sessionId, topic, remote));
-                            default -> {}
-                        }
-                    } catch (Throwable t) {
-                        log.debug("Failed to publish finalization event: {}", t.toString());
-                    }
-                });
 
-        // Prepend retry line if enabled
-        if (props.getStream().isRetryEnabled()) {
-            flux = Flux.concat(Flux.just(ServerSentEvent.<Object>builder().retry(props.getStream().getRetry()).build()), flux);
-        }
-
-        // Map errors to SSE if configured
-        if (props.getStream().isMapErrorsToSse()) {
-            flux = flux
-                .doOnError(ex -> {
-                    log.warn("SSE stream error: topic={} from {} error={}", topic, remote, ex.toString());
-                    try {
-                        eventPublisher.publishEvent(new com.spectrayan.sse.server.events.SseDisconnectedEvent(sessionId, topic, remote, ex));
-                    } catch (Throwable t) {
-                        log.debug("Failed to publish SseDisconnectedEvent: {}", t.toString());
-                    }
-                })
-                .onErrorResume(ex -> Mono.deferContextual(ctx -> {
-                    if (ex instanceof SseException se) {
-                        return Mono.just(ErrorEvents.fromException(se, topic, ctx));
-                    }
-                    return Mono.just(ErrorEvents.fromThrowable(ex, topic, ctx));
-                }));
-        }
-
-        // Add topic + session + remote address + MDC activation marker into context
-        flux = flux.contextWrite(ctx -> ctx
-                .put(props.getMdcContextKey(), Boolean.TRUE)
-                .put("topic", topic)
-                .put("sessionId", sessionId)
-                .put("remoteAddress", remote)
-        );
-
-        // Apply stream customizers
-        for (SseStreamCustomizer c : streamCustomizers) {
-            try {
-                flux = c.customize(topic, exchange, flux);
-            } catch (Throwable t) {
-                log.warn("Stream customizer {} failed: {}", c.getClass().getSimpleName(), t.toString());
-            }
-        }
-
-        return flux;
+        return orchestrator.buildStream(session, exchange);
     }
 }
+

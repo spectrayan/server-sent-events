@@ -282,6 +282,8 @@ export class SseClient {
       reconnection,
       callbacks: options?.callbacks ?? this.globalConfig.callbacks ?? DEFAULT_SSE_CLIENT_CONFIG.callbacks,
       hooks: options?.hooks ?? this.globalConfig.hooks ?? DEFAULT_SSE_CLIENT_CONFIG.hooks,
+      idleTimeoutMs: options?.idleTimeoutMs ?? this.globalConfig.idleTimeoutMs ?? DEFAULT_SSE_CLIENT_CONFIG.idleTimeoutMs,
+      logger: options?.logger ?? this.globalConfig.logger ?? DEFAULT_SSE_CLIENT_CONFIG.logger,
     } as Required<SseClientConfig>;
   }
 }

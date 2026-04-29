@@ -71,10 +71,14 @@ final class SessionTracker {
                     }
                 }
                 int left = channel.subscribers.decrementAndGet();
+                if (metrics != null) metrics.recordDisconnection(topic);
                 boolean shouldCleanup = sig == SignalType.CANCEL || sig == SignalType.ON_ERROR;
-                if (left <= 0 && shouldCleanup) {
+                // Use exact zero check to prevent double-cleanup when multiple
+                // subscribers disconnect concurrently (TOCTOU race prevention).
+                if (left == 0 && shouldCleanup) {
                     channel.sink.tryEmitComplete();
                     topicManager.remove(topic);
+                    if (metrics != null) metrics.removeTopic(topic);
                     log.info("SSE topic {} completed and removed (signal: {})", topic, sig);
                 } else {
                     log.debug("Subscriber removed from topic {} (remaining: {}, signal: {})", topic, left, sig);

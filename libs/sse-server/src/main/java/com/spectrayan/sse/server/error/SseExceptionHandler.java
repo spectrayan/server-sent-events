@@ -116,9 +116,10 @@ public class SseExceptionHandler implements WebExceptionHandler {
             @SuppressWarnings("unchecked")
             HttpMessageWriter<ProblemDetail> writer = (HttpMessageWriter<ProblemDetail>) findWriterFor(ProblemDetail.class);
             if (writer == null) {
-                // Fallback: write minimal JSON manually
-                String json = "{\"title\":\"" + (pd.getTitle() != null ? pd.getTitle() : "Error") + "\",\"status\":" + pd.getStatus() + "}";
-                var buffer = exchange.getResponse().bufferFactory().wrap(json.getBytes());
+                // Fallback: write minimal JSON manually (with proper escaping)
+                String title = pd.getTitle() != null ? escapeJson(pd.getTitle()) : "Error";
+                String json = "{\"title\":\"" + title + "\",\"status\":" + pd.getStatus() + "}";
+                var buffer = exchange.getResponse().bufferFactory().wrap(json.getBytes(java.nio.charset.StandardCharsets.UTF_8));
                 return exchange.getResponse().writeWith(Mono.just(buffer));
             }
             return writer.write(Mono.just(pd),
@@ -186,6 +187,33 @@ public class SseExceptionHandler implements WebExceptionHandler {
             case SUBSCRIPTION_REJECTED -> HttpStatus.FORBIDDEN;
             case INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
+    }
+
+    /**
+     * Escape a string for safe embedding in a JSON string literal.
+     * Handles quotes, backslashes, and control characters.
+     */
+    private static String escapeJson(String value) {
+        if (value == null) return "";
+        StringBuilder sb = new StringBuilder(value.length() + 16);
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            switch (ch) {
+                case '"' -> sb.append("\\\"");
+                case '\\' -> sb.append("\\\\");
+                case '\n' -> sb.append("\\n");
+                case '\r' -> sb.append("\\r");
+                case '\t' -> sb.append("\\t");
+                default -> {
+                    if (ch < 0x20) {
+                        sb.append(String.format("\\u%04x", (int) ch));
+                    } else {
+                        sb.append(ch);
+                    }
+                }
+            }
+        }
+        return sb.toString();
     }
 
     @Getter

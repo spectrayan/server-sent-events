@@ -106,14 +106,13 @@ public final class SseSession {
 
     /**
      * Convenience factory that creates a minimal session for the given topic with
-     * default values for other fields. Note: no session id is generated here; callers
-     * should assign one using a configured {@code SessionIdGenerator}.
+     * a random UUID session id and default values for other fields.
      *
      * @param topic the topic name (must not be {@code null})
      * @return a new {@link SseSession}
      */
     public static SseSession anonymous(String topic) {
-        return builder().topic(topic).build();
+        return builder().sessionId(java.util.UUID.randomUUID().toString()).topic(topic).build();
     }
 
     /**
@@ -171,6 +170,7 @@ public final class SseSession {
          */
         public SseSession build() {
             Objects.requireNonNull(topic, "topic");
+            Objects.requireNonNull(sessionId, "sessionId");
             return new SseSession(this);
         }
     }

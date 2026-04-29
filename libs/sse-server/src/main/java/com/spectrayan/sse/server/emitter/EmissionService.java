@@ -1,5 +1,6 @@
 package com.spectrayan.sse.server.emitter;
 
+import com.spectrayan.sse.server.config.SseServerProperties;
 import com.spectrayan.sse.server.error.EmissionRejectedException;
 import com.spectrayan.sse.server.error.TopicNotFoundException;
 import org.slf4j.Logger;
@@ -26,12 +27,6 @@ final class EmissionService {
 
     private static final Logger log = LoggerFactory.getLogger(EmissionService.class);
 
-    /**
-     * Default number of retry attempts for serialization contention, used when
-     * no value is specified via configuration.
-     */
-    static final int DEFAULT_EMIT_RETRIES = 16;
-
     private final com.spectrayan.sse.server.metrics.SseMetrics metrics;
     private final int maxEmitRetries;
 
@@ -40,11 +35,13 @@ final class EmissionService {
      *
      * @param metrics optional SSE metrics recorder; may be {@code null}
      * @param maxEmitRetries maximum retry attempts on {@code FAIL_NON_SERIALIZED};
-     *                       0 to disable retry (fail immediately on contention)
+     *                       0 to disable retry (fail immediately on contention).
+     *                       Clamped to [{@code 0}, {@link SseServerProperties.Emitter#MAX_EMIT_RETRIES}]
+     *                       by the properties layer.
      */
     EmissionService(com.spectrayan.sse.server.metrics.SseMetrics metrics, int maxEmitRetries) {
         this.metrics = metrics;
-        this.maxEmitRetries = Math.max(0, maxEmitRetries);
+        this.maxEmitRetries = maxEmitRetries;
     }
 
     /**

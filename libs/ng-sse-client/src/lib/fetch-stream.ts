@@ -73,6 +73,9 @@ export function fetchStream<T>(
             }
 
             if (!response.body) {
+              if (response.status === 204) {
+                throw new Error(`SSE server returned HTTP 204 No Content — the endpoint exists but produced no body`);
+              }
               throw new Error('SSE response has no body (ReadableStream not supported?)');
             }
 
@@ -83,7 +86,7 @@ export function fetchStream<T>(
 
             return readSseStream(response.body, subscriber, config, zone, processEventData, (id) => {
               lastEventId = id;
-            }, signal);
+            }, signal, config.idleTimeoutMs);
           })
           .then(() => {
             // Stream ended normally (server closed the connection)
@@ -176,6 +179,7 @@ async function readSseStream<T>(
   processEventData: (data: T, eventType: string) => void,
   onId: (id: string) => void,
   signal: AbortSignal,
+  idleTimeoutMs?: number,
 ): Promise<void> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -187,7 +191,16 @@ async function readSseStream<T>(
 
   try {
     while (!signal.aborted) {
-      const { done, value } = await reader.read();
+      // Idle timeout: if no data arrives within the configured window, abort.
+      // This prevents the stream from hanging indefinitely on stalled TCP connections.
+      let readPromise: Promise<ReadableStreamReadResult<Uint8Array>> = reader.read();
+      if (idleTimeoutMs && idleTimeoutMs > 0) {
+        const timeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`SSE idle timeout: no data received for ${idleTimeoutMs}ms`)), idleTimeoutMs)
+        );
+        readPromise = Promise.race([readPromise, timeout]) as Promise<ReadableStreamReadResult<Uint8Array>>;
+      }
+      const { done, value } = await readPromise;
       if (done) break;
 
       buffer += decoder.decode(value, { stream: true });

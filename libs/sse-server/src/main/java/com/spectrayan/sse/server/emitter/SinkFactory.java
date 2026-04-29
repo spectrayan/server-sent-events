@@ -2,6 +2,8 @@ package com.spectrayan.sse.server.emitter;
 
 import com.spectrayan.sse.server.config.SseServerProperties;
 import com.spectrayan.sse.server.customize.SseEmitterCustomizer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.codec.ServerSentEvent;
 import reactor.core.publisher.Sinks;
 
@@ -17,6 +19,8 @@ import reactor.core.publisher.Sinks;
  *   - MULTICAST: uses {@code Sinks.many().multicast().directBestEffort()} suitable for hot streams.
  */
 final class SinkFactory {
+
+    private static final Logger log = LoggerFactory.getLogger(SinkFactory.class);
 
     private final SseServerProperties properties;
     private final SseEmitterCustomizer sinkCustomizer;
@@ -62,6 +66,9 @@ final class SinkFactory {
                 if (size > 0) {
                     yield Sinks.many().replay().limit(size);
                 } else {
+                    log.warn("Creating unbounded REPLAY sink for topic '{}'. "
+                           + "This buffers ALL events in memory indefinitely. "
+                           + "Set spectrayan.sse.server.emitter.replay-size > 0 to bound the buffer.", topic);
                     yield Sinks.many().replay().all();
                 }
             }

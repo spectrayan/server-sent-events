@@ -67,6 +67,18 @@ export interface SseClientConfig {
   callbacks?: EventCallbackConfig[];
   /** Lifecycle hooks for the SSE client */
   hooks?: SseClientHooks;
+  /**
+   * Idle timeout in milliseconds for the `fetch` transport.
+   * If no data (including heartbeats) is received within this window,
+   * the connection is aborted and a reconnect is scheduled.
+   * **Only used with `transport: 'fetch'`**. Default: 0 (disabled).
+   */
+  idleTimeoutMs?: number;
+  /**
+   * Optional logger for library diagnostics. Replaces default `console.*` usage.
+   * Set to `false` to silence all library logging.
+   */
+  logger?: SseLogger | false;
 }
 
 export interface ApiCallbackConfig<T = any> {
@@ -108,6 +120,18 @@ export const DEFAULT_RECONNECTION_CONFIG: SseReconnectionConfig = {
   jitterRatio: 0.2,
 };
 
+/** Pluggable logger interface for the SSE client library. */
+export interface SseLogger {
+  warn: (message: string, ...args: unknown[]) => void;
+  error: (message: string, ...args: unknown[]) => void;
+}
+
+/** Default logger that delegates to console. */
+export const DEFAULT_SSE_LOGGER: SseLogger = {
+  warn: (msg, ...args) => console.warn(msg, ...args),
+  error: (msg, ...args) => console.error(msg, ...args),
+};
+
 export const DEFAULT_SSE_CLIENT_CONFIG: Readonly<Required<Omit<SseClientConfig, 'url'>>> = {
   withCredentials: false,
   transport: 'eventsource',
@@ -119,6 +143,8 @@ export const DEFAULT_SSE_CLIENT_CONFIG: Readonly<Required<Omit<SseClientConfig, 
   reconnection: DEFAULT_RECONNECTION_CONFIG,
   callbacks: [],
   hooks: {},
+  idleTimeoutMs: 0,
+  logger: DEFAULT_SSE_LOGGER,
 };
 
 export const SSE_CLIENT_CONFIG = new InjectionToken<Partial<SseClientConfig>>(
