@@ -29,6 +29,16 @@ public final class SseSession {
      */
     private final String topic;
     /**
+     * The authenticated principal (user id) from the security context, if available.
+     * {@code null} for unauthenticated or anonymous connections.
+     */
+    private final String principal;
+    /**
+     * The {@code Last-Event-ID} sent by the client on reconnect, if available.
+     * Populated from the {@code Last-Event-ID} header or the configured query parameter.
+     */
+    private final String lastEventId;
+    /**
      * The remote address of the subscribing client, if available (may be {@code null}).
      */
     private final String remoteAddress;
@@ -48,6 +58,8 @@ public final class SseSession {
     private SseSession(Builder b) {
         this.sessionId = b.sessionId; // Do not auto-generate here; generation is handled by SessionIdGenerator upstream
         this.topic = b.topic;
+        this.principal = b.principal;
+        this.lastEventId = b.lastEventId;
         this.remoteAddress = b.remoteAddress;
         this.userAgent = b.userAgent;
         this.createdAt = b.createdAt != null ? b.createdAt : Instant.now();
@@ -62,6 +74,14 @@ public final class SseSession {
      * Returns the topic name this session is subscribed to.
      */
     public String getTopic() { return topic; }
+    /**
+     * Returns the authenticated principal (user id), or {@code null} if unauthenticated.
+     */
+    public String getPrincipal() { return principal; }
+    /**
+     * Returns the {@code Last-Event-ID} sent by the client on reconnect, or {@code null}.
+     */
+    public String getLastEventId() { return lastEventId; }
     /**
      * Returns the remote address that initiated the subscription, if known.
      */
@@ -86,14 +106,13 @@ public final class SseSession {
 
     /**
      * Convenience factory that creates a minimal session for the given topic with
-     * default values for other fields. Note: no session id is generated here; callers
-     * should assign one using a configured {@code SessionIdGenerator}.
+     * a random UUID session id and default values for other fields.
      *
      * @param topic the topic name (must not be {@code null})
      * @return a new {@link SseSession}
      */
     public static SseSession anonymous(String topic) {
-        return builder().topic(topic).build();
+        return builder().sessionId(java.util.UUID.randomUUID().toString()).topic(topic).build();
     }
 
     /**
@@ -102,6 +121,8 @@ public final class SseSession {
     public static final class Builder {
         private String sessionId;
         private String topic;
+        private String principal;
+        private String lastEventId;
         private String remoteAddress;
         private String userAgent;
         private Instant createdAt;
@@ -116,6 +137,14 @@ public final class SseSession {
          * Set the topic name (required).
          */
         public Builder topic(String topic) { this.topic = topic; return this; }
+        /**
+         * Set the authenticated principal (user id) from the security context.
+         */
+        public Builder principal(String principal) { this.principal = principal; return this; }
+        /**
+         * Set the {@code Last-Event-ID} for reconnection replay.
+         */
+        public Builder lastEventId(String lastEventId) { this.lastEventId = lastEventId; return this; }
         /**
          * Set the remote address for the subscribing client.
          */
@@ -141,6 +170,7 @@ public final class SseSession {
          */
         public SseSession build() {
             Objects.requireNonNull(topic, "topic");
+            Objects.requireNonNull(sessionId, "sessionId");
             return new SseSession(this);
         }
     }

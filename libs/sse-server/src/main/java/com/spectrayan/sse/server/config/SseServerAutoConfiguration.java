@@ -49,8 +49,9 @@ public class SseServerAutoConfiguration {
     @ConditionalOnMissingBean
     public SseEmitter sseEmitter(SseServerProperties properties, ObjectProvider<SseEmitterCustomizer> sinkCustomizer,
                                  ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
-                                 com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
-        return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks, sessionIdGenerator);
+                                 com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator,
+                                 ObjectProvider<com.spectrayan.sse.server.metrics.SseMetrics> sseMetrics) {
+        return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks, sessionIdGenerator, sseMetrics.getIfAvailable());
     }
 
     @Bean
@@ -256,5 +257,17 @@ public class SseServerAutoConfiguration {
         return new com.spectrayan.sse.server.topic.DelegatingTopicRegistry(
                 (com.spectrayan.sse.server.topic.TopicRegistry) emitter
         );
+    }
+
+    @Bean
+    @ConditionalOnMissingBean(com.spectrayan.sse.server.metrics.SseMetrics.class)
+    @ConditionalOnClass(name = "io.micrometer.core.instrument.MeterRegistry")
+    @ConditionalOnProperty(prefix = "spectrayan.sse.server.metrics", name = "enabled", havingValue = "true", matchIfMissing = true)
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnBean(type = "io.micrometer.core.instrument.MeterRegistry")
+    public com.spectrayan.sse.server.metrics.SseMetrics sseMetrics(
+            io.micrometer.core.instrument.MeterRegistry meterRegistry,
+            com.spectrayan.sse.server.topic.TopicRegistry topicRegistry,
+            SseServerProperties properties) {
+        return new com.spectrayan.sse.server.metrics.SseMetrics(meterRegistry, topicRegistry, properties);
     }
 }

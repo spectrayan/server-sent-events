@@ -5,15 +5,21 @@ import {
   SSE_CLIENT_CONFIG,
   SseClientConfig,
   SseReconnectionConfig,
+  SseTransport,
 } from './config';
 import { EventSourceFactory, EventSourceLike } from './event-source.factory';
 import { Observable } from 'rxjs';
 import { computeBackoffDelay } from './backoff';
-import {ApiCallbackService} from "./api-callback.service";
+import { ApiCallbackService } from './api-callback.service';
+import { fetchStream } from './fetch-stream';
 
 export interface StreamOptions<T = unknown> extends Partial<Omit<SseClientConfig, 'url' | 'parse'>> {
   /** Custom parser for the data payload */
   parse?: (data: string) => T;
+  /** Transport: 'eventsource' (default) or 'fetch' (supports headers) */
+  transport?: SseTransport;
+  /** Custom headers — only used with transport: 'fetch' */
+  headers?: Record<string, string>;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -45,72 +51,98 @@ export class SseClient {
   private streamInternal<T>(url: string, options?: StreamOptions<T>): Observable<T> {
     const merged = this.mergeConfig<T>(url, options);
 
+    // ── Fetch transport ─────────────────────────────────────────────
+    if (merged.transport === 'fetch') {
+      return fetchStream<T>(
+        merged,
+        this.zone,
+        (data: T, eventType: string) => this.processEventDataShared(data, eventType, merged),
+      );
+    }
+
+    // ── EventSource transport (default) ─────────────────────────────
+    return this.streamEventSource<T>(merged);
+  }
+
+  /**
+   * Shared event processing: fires hooks, executes callbacks, emits to subscriber.
+   * Called by both EventSource and fetch transports.
+   */
+  private processEventDataShared<T>(data: T, eventType: string, merged: Required<SseClientConfig>): void {
+    const hooks = merged.hooks ?? {};
+
+    // Fire onMessage hook
+    try {
+      hooks.onMessage?.({ eventType, data, rawEvent: undefined as unknown as MessageEvent });
+    } catch { /* noop */ }
+
+    // Execute callbacks if configured
+    const callbacks = merged.callbacks || [];
+    for (const callbackConfig of callbacks) {
+      if (callbackConfig.eventType && callbackConfig.eventType !== eventType) continue;
+      if (callbackConfig.condition && !callbackConfig.condition(data)) continue;
+
+      this.zone.runOutsideAngular(() => {
+        this.apiCallback
+          .executeCallbackWithRetry(data, callbackConfig.apiCallback, callbackConfig.retry)
+          .subscribe({
+            next: () => { /* side-effect success */ },
+            error: () => { /* callback failure should not break the stream */ },
+          });
+      });
+    }
+  }
+
+  /**
+   * EventSource-based streaming (original implementation, unchanged).
+   */
+  private streamEventSource<T>(merged: Required<SseClientConfig>): Observable<T> {
     return new Observable<T>((subscriber) => {
       let es: EventSourceLike | null = null;
       let closed = false;
-      let retries = 0; // number of consecutive error-driven retries performed so far
+      let retries = 0;
       let lastEventId: string | undefined;
 
       const hooks = merged.hooks ?? {};
 
       const processEventData = (data: T, eventType: string, raw?: MessageEvent) => {
-        // Fire onMessage hook
         try {
           hooks.onMessage?.({ eventType, data, rawEvent: raw as MessageEvent });
-        } catch {}
+        } catch { /* noop */ }
 
-        // Execute callbacks if configured
         const callbacks = merged.callbacks || [];
         for (const callbackConfig of callbacks) {
-          // Check if callback applies to this event type
-          if (callbackConfig.eventType && callbackConfig.eventType !== eventType) {
-            continue;
-          }
+          if (callbackConfig.eventType && callbackConfig.eventType !== eventType) continue;
+          if (callbackConfig.condition && !callbackConfig.condition(data)) continue;
 
-          // Check condition if specified
-          if (callbackConfig.condition && !callbackConfig.condition(data)) {
-            continue;
-          }
-
-          // Execute the callback
           this.zone.runOutsideAngular(() => {
             this.apiCallback
               .executeCallbackWithRetry(data, callbackConfig.apiCallback, callbackConfig.retry)
               .subscribe({
-                next: (result) => {
-                  // side-effect success; intentionally not emitting to stream
-                  // console.debug('API callback executed successfully:', result);
-                },
-                error: (error) => {
-                  // callback failure should not break the stream
-                  // console.error('API callback execution failed:', error);
-                },
+                next: () => { /* side-effect success */ },
+                error: () => { /* callback failure should not break stream */ },
               });
           });
         }
 
-        // Emit the event data to subscribers
         this.zone.run(() => subscriber.next(data));
       };
 
       const openConnection = () => {
         const connectUrl = this.buildReconnectUrl(merged.url, merged.lastEventIdParamName, lastEventId);
 
-        // Hook: about to connect
-        try { hooks.onConnect?.(connectUrl); } catch {}
+        try { hooks.onConnect?.(connectUrl); } catch { /* noop */ }
 
         this.zone.runOutsideAngular(() => {
           try {
             es = this.esFactory.create(connectUrl, merged.withCredentials);
           } catch (err) {
-            // EventSource might be unavailable; emit error and complete
             subscriber.error(err);
             return;
           }
 
           if (!es) return;
 
-          // default message handler
           es.onmessage = (ev: MessageEvent) => {
             lastEventId = (ev as any).lastEventId as string | undefined;
             try {
@@ -121,30 +153,26 @@ export class SseClient {
             }
           };
 
-          // onopen resets retries and fires hook
           es.onopen = () => {
-            const attempt = retries; // how many retries preceded this successful open
+            const attempt = retries;
             retries = 0;
-            try { hooks.onOpen?.({ url: connectUrl, attempt }); } catch {}
+            try { hooks.onOpen?.({ url: connectUrl, attempt }); } catch { /* noop */ }
           };
 
           const onError = (ev: Event) => {
-            // If stream was intentionally closed, ignore
             if (closed) return;
 
-            // If reconnection disabled, push error and complete
             if (!merged.reconnection.enabled) {
-              try { hooks.onError?.({ event: ev, attempt: retries, willRetry: false }); } catch {}
+              try { hooks.onError?.({ event: ev, attempt: retries, willRetry: false }); } catch { /* noop */ }
               this.zone.run(() => {
                 subscriber.error(new Error('SSE connection error'));
               });
               return;
             }
 
-            // Will attempt reconnects?
             if (merged.reconnection.maxRetries >= 0 && retries >= merged.reconnection.maxRetries) {
-              try { hooks.onError?.({ event: ev, attempt: retries, willRetry: false }); } catch {}
-              try { hooks.onClose?.({ reason: 'retriesExceeded' }); } catch {}
+              try { hooks.onError?.({ event: ev, attempt: retries, willRetry: false }); } catch { /* noop */ }
+              try { hooks.onClose?.({ reason: 'retriesExceeded' }); } catch { /* noop */ }
               this.zone.run(() => subscriber.complete());
               return;
             }
@@ -160,14 +188,13 @@ export class SseClient {
             try {
               hooks.onError?.({ event: ev, attempt: nextAttempt, willRetry: true, nextDelayMs: delay });
               hooks.onReconnectAttempt?.({ attempt: nextAttempt, delayMs: delay });
-            } catch {}
+            } catch { /* noop */ }
 
-            // schedule reconnect
             setTimeout(() => {
               retries = nextAttempt;
               try {
                 es?.close();
-              } catch {}
+              } catch { /* noop */ }
               es = null;
               if (!closed) {
                 openConnection();
@@ -177,7 +204,6 @@ export class SseClient {
 
           es.onerror = onError;
 
-          // attach named events if any (skip default 'message' to avoid duplicate handling)
           const namedListeners: Array<{ name: string; fn: (ev: MessageEvent) => void }> = [];
           const uniqueNamedEvents = Array.from(new Set(merged.events)).filter((e) => e && e !== 'message');
           for (const name of uniqueNamedEvents) {
@@ -194,21 +220,19 @@ export class SseClient {
             es.addEventListener(name, fn);
           }
 
-          // On teardown remove listeners and close
           const teardown = () => {
             try {
               for (const l of namedListeners) {
                 es?.removeEventListener(l.name, l.fn);
               }
               es?.close();
-            } catch {}
+            } catch { /* noop */ }
             es = null;
           };
 
-          // Register teardown once
           subscriber.add(() => {
             closed = true;
-            try { hooks.onClose?.({ reason: 'unsubscribe' }); } catch {}
+            try { hooks.onClose?.({ reason: 'unsubscribe' }); } catch { /* noop */ }
             teardown();
           });
         });
@@ -220,7 +244,7 @@ export class SseClient {
         closed = true;
         try {
           es?.close();
-        } catch {}
+        } catch { /* noop */ }
         es = null;
       };
     });
@@ -249,6 +273,8 @@ export class SseClient {
     return {
       url,
       withCredentials: options?.withCredentials ?? this.globalConfig.withCredentials ?? DEFAULT_SSE_CLIENT_CONFIG.withCredentials,
+      transport: options?.transport ?? this.globalConfig.transport ?? DEFAULT_SSE_CLIENT_CONFIG.transport,
+      headers: { ...(this.globalConfig.headers ?? {}), ...(options?.headers ?? {}) },
       events: options?.events ?? this.globalConfig.events ?? DEFAULT_SSE_CLIENT_CONFIG.events,
       parse: (options?.parse as any) ?? this.globalConfig.parse ?? DEFAULT_SSE_CLIENT_CONFIG.parse,
       lastEventIdParamName:
@@ -256,6 +282,8 @@ export class SseClient {
       reconnection,
       callbacks: options?.callbacks ?? this.globalConfig.callbacks ?? DEFAULT_SSE_CLIENT_CONFIG.callbacks,
       hooks: options?.hooks ?? this.globalConfig.hooks ?? DEFAULT_SSE_CLIENT_CONFIG.hooks,
+      idleTimeoutMs: options?.idleTimeoutMs ?? this.globalConfig.idleTimeoutMs ?? DEFAULT_SSE_CLIENT_CONFIG.idleTimeoutMs,
+      logger: options?.logger ?? this.globalConfig.logger ?? DEFAULT_SSE_CLIENT_CONFIG.logger,
     } as Required<SseClientConfig>;
   }
 }

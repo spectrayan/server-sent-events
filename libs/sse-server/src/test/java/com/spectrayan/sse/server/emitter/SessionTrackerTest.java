@@ -34,7 +34,7 @@ class SessionTrackerTest {
         SinkFactory sinkFactory = new SinkFactory(props, null);
         topicManager = new TopicManager(sinkFactory);
         hook = new RecordingHook();
-        tracker = new SessionTracker(List.of(hook), topicManager);
+        tracker = new SessionTracker(List.of(hook), topicManager, null);
     }
 
     @Test

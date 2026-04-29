@@ -130,6 +130,48 @@ public interface SseEmitter {
      */
     <T> void emit(T payload);
 
+    // ── Reactive emission API ─────────────────────────────────────────
+
+    /**
+     * Reactively emit to a specific topic. Returns a {@link reactor.core.publisher.Mono} that
+     * completes on success or errors on failure, allowing callers to chain in a reactive pipeline.
+     *
+     * @param <T> payload type
+     * @param topicId topic to emit to
+     * @param eventName event name (nullable)
+     * @param payload payload to send
+     * @param id SSE {@code id} to set (nullable)
+     * @return a Mono that completes when the emission succeeds
+     */
+    default <T> reactor.core.publisher.Mono<Void> emitReactive(String topicId, String eventName, T payload, String id) {
+        return reactor.core.publisher.Mono.fromRunnable(() -> emitToTopic(topicId, eventName, payload, id));
+    }
+
+    /**
+     * Reactively emit to a specific topic (data-only, no event name or id).
+     *
+     * @param <T> payload type
+     * @param topicId topic to emit to
+     * @param payload payload to send
+     * @return a Mono that completes when the emission succeeds
+     */
+    default <T> reactor.core.publisher.Mono<Void> emitReactive(String topicId, T payload) {
+        return emitReactive(topicId, null, payload, null);
+    }
+
+    /**
+     * Reactively emit to a specific topic with an event name.
+     *
+     * @param <T> payload type
+     * @param topicId topic to emit to
+     * @param eventName event name (nullable)
+     * @param payload payload to send
+     * @return a Mono that completes when the emission succeeds
+     */
+    default <T> reactor.core.publisher.Mono<Void> emitReactive(String topicId, String eventName, T payload) {
+        return emitReactive(topicId, eventName, payload, null);
+    }
+
     /**
      * Shut down the emitter, completing all topic sinks and releasing resources.
      * After shutdown, further emissions are no-ops or rejected depending on implementation.

@@ -2,6 +2,7 @@ package com.spectrayan.sse.server.template;
 
 import com.spectrayan.sse.server.config.SseHeaderHandler;
 import com.spectrayan.sse.server.config.SseServerProperties;
+import com.spectrayan.sse.server.controller.SseStreamOrchestrator;
 import com.spectrayan.sse.server.customize.SseEndpointCustomizer;
 import com.spectrayan.sse.server.customize.SseHeaderCustomizer;
 import com.spectrayan.sse.server.customize.SseStreamCustomizer;
@@ -49,6 +50,7 @@ public class DefaultSseTemplate implements SseTemplate {
     private final HeartbeatPolicy heartbeatPolicy;
     private final ErrorMapper errorMapper;
     private final ConnectionRegistry connectionRegistry;
+    private final SseStreamOrchestrator orchestrator;
 
     /**
      * Create the default {@link SseTemplate} implementation.
@@ -96,24 +98,23 @@ public class DefaultSseTemplate implements SseTemplate {
         this.heartbeatPolicy = heartbeatPolicy;
         this.errorMapper = errorMapper;
         this.connectionRegistry = connectionRegistry;
+        this.orchestrator = new SseStreamOrchestrator(emitter, props, eventPublisher, this.streamCustomizers);
     }
 
     @Override
     public Mono<ServerResponse> handle(ServerRequest request) {
         ServerWebExchange exchange = request.exchange();
-        String topicVar = props.getBasePath() != null ? "topic" : "topic"; // topic variable name; currently fixed
-        String topic = request.pathVariable(topicVar);
+        String topic = request.pathVariable("topic");
         String remote = (exchange != null && exchange.getRequest() != null && exchange.getRequest().getRemoteAddress() != null)
                 ? exchange.getRequest().getRemoteAddress().toString() : "";
 
         Mono<String> sessionIdMono = (exchange != null
                 ? exchange.getSession().map(WebSession::getId)
-                : Mono.just(""));
+                    .filter(id -> id != null && !id.isBlank())
+                    .switchIfEmpty(Mono.fromSupplier(() -> sessionIdGenerator != null ? sessionIdGenerator.generate(exchange, topic) : java.util.UUID.randomUUID().toString()))
+                : Mono.fromSupplier(() -> sessionIdGenerator != null ? sessionIdGenerator.generate(exchange, topic) : java.util.UUID.randomUUID().toString()));
         return sessionIdMono
-                .flatMap(idMaybe -> {
-                    String sid = (idMaybe != null && !idMaybe.isBlank())
-                            ? idMaybe
-                            : (sessionIdGenerator != null ? sessionIdGenerator.generate(exchange, topic) : java.util.UUID.randomUUID().toString());
+                .flatMap(sid -> {
 
                     try {
                         eventPublisher.publishEvent(new com.spectrayan.sse.server.events.SseSessionCreatedEvent(sid, topic, remote));
@@ -158,9 +159,6 @@ public class DefaultSseTemplate implements SseTemplate {
 
     @Override
     public Flux<ServerSentEvent<Object>> connect(String topic, SseConnectContext ctx) {
-        // Apply headers and customizers before streaming
-        // Note: in functional endpoints, headers are applied by the WebFlux response before body write.
-
         String remote = ctx.remoteAddress();
         String sessionId = ctx.sessionId();
         log.info("SSE subscription requested (template): topic={} from {}", topic, remote);

@@ -48,7 +48,7 @@ jobs:
       - name: Build & test sse-server
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: '-B -U -pl libs/sse-server verify'
+          goals: '-B -U verify'
           working-directory: '.'
 
   release:
@@ -80,5 +80,5 @@ jobs:
       - name: Deploy to Maven Central
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
-          goals: "-B -U -pl libs/sse-server -P ${{ inputs.channel }} clean deploy"
+          goals: "-B -U -P ${{ inputs.channel }} clean deploy"
           working-directory: '.'

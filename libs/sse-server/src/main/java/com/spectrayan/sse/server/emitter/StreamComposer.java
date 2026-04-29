@@ -49,6 +49,9 @@ final class StreamComposer {
      * @return a merged {@link Flux} that includes heartbeats and the optional connected event
      */
     Flux<ServerSentEvent<Object>> compose(String topic, Flux<ServerSentEvent<Object>> sinkFlux) {
+        // Share the sink flux to avoid dual subscription — without this, MULTICAST
+        // sinks would split events between the heartbeat's takeUntilOther and merge.
+        Flux<ServerSentEvent<Object>> shared = sinkFlux.share();
         Flux<ServerSentEvent<Object>> heartbeat = Flux.never();
         if (properties.getStream().isHeartbeatEnabled()) {
             heartbeat = Flux.interval(properties.getStream().getHeartbeatInterval())
@@ -56,10 +59,10 @@ final class StreamComposer {
                         .event(properties.getStream().getHeartbeatEventName())
                         .build())
                 .doOnNext(ev -> log.trace("Sending heartbeat on topic {}", topic))
-                .takeUntilOther(sinkFlux.ignoreElements());
+                .takeUntilOther(shared.ignoreElements());
         }
 
-        Flux<ServerSentEvent<Object>> merged = Flux.merge(sinkFlux, heartbeat);
+        Flux<ServerSentEvent<Object>> merged = Flux.merge(shared, heartbeat);
         if (properties.getStream().isConnectedEventEnabled()) {
             ServerSentEvent<Object> connected = ServerSentEvent.<Object>builder(properties.getStream().getConnectedEventData())
                 .event(properties.getStream().getConnectedEventName())

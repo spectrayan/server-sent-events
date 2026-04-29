@@ -18,16 +18,19 @@ final class SessionTracker {
 
     private final List<SseSessionHook> sessionHooks;
     private final TopicManager topicManager;
+    private final com.spectrayan.sse.server.metrics.SseMetrics metrics;
 
     /**
      * Create a new {@code SessionTracker}.
      *
      * @param sessionHooks optional hooks invoked on join/leave; {@code null} treated as empty list
      * @param topicManager manager used to remove topics when the last subscriber leaves on cancel/error
+     * @param metrics optional SSE metrics recorder; may be {@code null}
      */
-    SessionTracker(List<SseSessionHook> sessionHooks, TopicManager topicManager) {
+    SessionTracker(List<SseSessionHook> sessionHooks, TopicManager topicManager, com.spectrayan.sse.server.metrics.SseMetrics metrics) {
         this.sessionHooks = sessionHooks != null ? sessionHooks : List.of();
         this.topicManager = topicManager;
+        this.metrics = metrics;
     }
 
     /**
@@ -51,6 +54,7 @@ final class SessionTracker {
         return upstream
             .doOnSubscribe(sub -> {
                 int count = channel.subscribers.incrementAndGet();
+                if (metrics != null) metrics.recordConnection(topic);
                 if (session != null) {
                     channel.sessions.put(session.getSessionId(), session);
                     for (var hook : sessionHooks) {
@@ -67,10 +71,14 @@ final class SessionTracker {
                     }
                 }
                 int left = channel.subscribers.decrementAndGet();
+                if (metrics != null) metrics.recordDisconnection(topic);
                 boolean shouldCleanup = sig == SignalType.CANCEL || sig == SignalType.ON_ERROR;
-                if (left <= 0 && shouldCleanup) {
+                // Use exact zero check to prevent double-cleanup when multiple
+                // subscribers disconnect concurrently (TOCTOU race prevention).
+                if (left == 0 && shouldCleanup) {
                     channel.sink.tryEmitComplete();
                     topicManager.remove(topic);
+                    if (metrics != null) metrics.removeTopic(topic);
                     log.info("SSE topic {} completed and removed (signal: {})", topic, sig);
                 } else {
                     log.debug("Subscriber removed from topic {} (remaining: {}, signal: {})", topic, left, sig);

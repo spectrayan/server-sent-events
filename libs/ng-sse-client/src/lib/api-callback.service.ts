@@ -1,12 +1,18 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { Observable, of, throwError, timer } from 'rxjs';
-import { catchError, mergeMap, retry, timeout } from 'rxjs/operators';
-import { ApiCallbackConfig } from './config';
+import { catchError, retry, timeout } from 'rxjs/operators';
+import { ApiCallbackConfig, DEFAULT_SSE_LOGGER, SSE_CLIENT_CONFIG, SseLogger } from './config';
 
 @Injectable({ providedIn: 'root' })
 export class ApiCallbackService {
   private readonly http = inject(HttpClient);
+  private readonly logger: SseLogger | false;
+
+  constructor() {
+    const globalConfig = inject(SSE_CLIENT_CONFIG, { optional: true }) ?? {};
+    this.logger = globalConfig.logger ?? DEFAULT_SSE_LOGGER;
+  }
 
   executeCallback<T>(eventData: T, config: ApiCallbackConfig<T>): Observable<any> {
     const payload = config.transformPayload ? config.transformPayload(eventData) : eventData;
@@ -39,7 +45,7 @@ export class ApiCallbackService {
 
     return request$.pipe(
       catchError(error => {
-        console.error('API callback failed:', error);
+        if (this.logger) this.logger.error('API callback failed:', error);
         return throwError(() => error);
       })
     );
@@ -58,14 +64,15 @@ export class ApiCallbackService {
       retry({
         count: retryConfig.maxRetries,
         delay: (error, retryCount) => {
-          console.warn(`API callback retry attempt ${retryCount}/${retryConfig.maxRetries}:`, error);
+          if (this.logger) this.logger.warn(`API callback retry attempt ${retryCount}/${retryConfig.maxRetries}:`, error);
           return timer(retryConfig.delayMs);
         }
       }),
       catchError(error => {
-        console.error(`API callback failed after ${retryConfig.maxRetries} retries:`, error);
+        if (this.logger) this.logger.error(`API callback failed after ${retryConfig.maxRetries} retries:`, error);
         return of(null); // Don't fail the stream, just log the error
       })
     );
   }
 }
+

@@ -46,6 +46,9 @@ public class SseServerProperties {
     // CORS configuration
     private Cors cors = new Cors();
 
+    // Metrics configuration
+    private Metrics metrics = new Metrics();
+
     public void setHeaders(List<SseHeader> headers) {
         this.headers = (headers != null ? headers : new ArrayList<>());
     }
@@ -77,6 +80,8 @@ public class SseServerProperties {
 
         /** When errors happen on the stream, map to SSE error events instead of terminating */
         private boolean mapErrorsToSse = true;
+        /** Name of the query parameter to read Last-Event-ID from on reconnect. Default: 'lastEventId' */
+        private String lastEventIdParamName = "lastEventId";
     }
 
     @Data
@@ -85,14 +90,45 @@ public class SseServerProperties {
         private String pattern = "^[A-Za-z0-9._-]+$";
         /** Max subscribers per topic (<=0 means unlimited) */
         private int maxSubscribers = 0;
+        /** Time a topic with 0 subscribers is kept before automatic removal. Null = no cleanup. */
+        private Duration idleTtl = null;
     }
 
     @Data
     public static class Emitter {
         /** Sink type: multicast or replay */
         private SinkType sinkType = SinkType.MULTICAST;
-        /** Replay size when using REPLAY sink */
-        private int replaySize = 0;
+        /**
+         * Replay buffer size when using REPLAY sink. Determines how many past events
+         * a reconnecting subscriber can catch up on.
+         * <p>
+         * Set to 0 for unbounded replay (keeps all events in memory — OOM risk for
+         * long-lived topics). Default: 256.
+         */
+        private int replaySize = 256;
+        /**
+         * Maximum number of retry attempts when a concurrent emit causes
+         * {@code FAIL_NON_SERIALIZED} on a serialized Reactor sink.
+         * <p>
+         * The contention window is typically nanoseconds, so 16 spin-wait
+         * retries is sufficient for any realistic workload. Set to 0 to
+         * disable retry (fail immediately on contention). Values above
+         * {@value #MAX_EMIT_RETRIES} are clamped to that ceiling to prevent
+         * misconfiguration causing CPU-bound spinning.
+         */
+        private int emitRetries = DEFAULT_EMIT_RETRIES;
+
+        /** Default retry count when not configured. */
+        public static final int DEFAULT_EMIT_RETRIES = 16;
+        /** Absolute ceiling to prevent misconfigured spin loops. */
+        public static final int MAX_EMIT_RETRIES = 128;
+
+        /**
+         * Set emit retries, clamping to the valid range {@code [0, MAX_EMIT_RETRIES]}.
+         */
+        public void setEmitRetries(int emitRetries) {
+            this.emitRetries = Math.max(0, Math.min(emitRetries, MAX_EMIT_RETRIES));
+        }
     }
 
     public enum SinkType { MULTICAST, REPLAY }
@@ -123,5 +159,13 @@ public class SseServerProperties {
         private Duration maxAge = Duration.ofHours(1);
         /** Optional path pattern override. If blank, will default to base path + "/**". */
         private String pathPattern;
+    }
+
+    @Data
+    public static class Metrics {
+        /** Enable SSE-specific Micrometer metrics. Only active when Micrometer is on classpath. */
+        private boolean enabled = true;
+        /** Tag counters with per-topic labels. Disable if topic cardinality is very high. */
+        private boolean perTopic = true;
     }
 }

@@ -135,13 +135,17 @@ final class TopicManager implements TopicRegistry {
         } else {
             log.info("Shutting down SSE topics: no active channels");
         }
-        topics.forEach((id, ch) -> {
+        // Iterate and remove atomically per entry to prevent new topics from
+        // being created and immediately cleared between forEach and clear.
+        var it = topics.entrySet().iterator();
+        while (it.hasNext()) {
+            var entry = it.next();
             try {
-                ch.sink.tryEmitComplete();
+                entry.getValue().sink.tryEmitComplete();
             } catch (Throwable t) {
-                log.warn("Error completing SSE channel for topic {}: {}", id, t.getMessage());
+                log.warn("Error completing SSE channel for topic {}: {}", entry.getKey(), t.getMessage());
             }
-        });
-        topics.clear();
+            it.remove();
+        }
     }
 }

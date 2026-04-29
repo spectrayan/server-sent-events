@@ -11,5 +11,5 @@ export function computeBackoffDelay(
   const jitter = base * jitterRatio;
   const min = Math.max(0, base - jitter);
   const max = base + jitter;
-  return Math.floor(min + Math.random() * (max - min));
+  return Math.min(maxDelayMs, Math.floor(min + Math.random() * (max - min)));
 }

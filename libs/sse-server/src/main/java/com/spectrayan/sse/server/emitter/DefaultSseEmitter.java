@@ -27,11 +27,13 @@ public class DefaultSseEmitter extends AbstractSseEmitter implements SseEmitter 
      * @param sinkCustomizer optional customizer allowing alternative sink creation strategy
      * @param sessionHooks optional hooks invoked on session join/leave
      * @param sessionIdGenerator optional generator used by components needing to derive a session id
+     * @param metrics optional SSE metrics recorder (null when Micrometer is absent)
      */
     public DefaultSseEmitter(SseServerProperties properties,
                              ObjectProvider<SseEmitterCustomizer> sinkCustomizer,
                              ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
-                             com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
-        super(properties, sinkCustomizer, sessionHooks, sessionIdGenerator);
+                             com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator,
+                             com.spectrayan.sse.server.metrics.SseMetrics metrics) {
+        super(properties, sinkCustomizer, sessionHooks, sessionIdGenerator, metrics);
     }
 }

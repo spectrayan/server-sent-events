@@ -1,5 +1,8 @@
 import { InjectionToken } from '@angular/core';
 
+/** Transport strategy for SSE connections. */
+export type SseTransport = 'eventsource' | 'fetch';
+
 export interface SseReconnectionConfig {
   enabled: boolean;
   /** Number of reconnection attempts. -1 for infinite. Default: -1 */
@@ -34,6 +37,24 @@ export interface SseClientConfig {
   url: string;
   /** Whether to include credentials (cookies, auth) */
   withCredentials?: boolean;
+  /**
+   * Transport to use for SSE connections.
+   * - `'eventsource'` (default): native browser EventSource API. Simple, auto-reconnects,
+   *   but **cannot send custom headers** (e.g. Authorization).
+   * - `'fetch'`: uses `fetch()` + `ReadableStream`. Supports custom headers.
+   *   Reconnection is handled by the library.
+   */
+  transport?: SseTransport;
+  /**
+   * Custom HTTP headers to send with the SSE request.
+   * **Only used with `transport: 'fetch'`** — native EventSource ignores headers.
+   *
+   * @example
+   * ```ts
+   * headers: { 'Authorization': 'Bearer eyJ...' }
+   * ```
+   */
+  headers?: Record<string, string>;
   /** Custom event names to subscribe to in addition to the default "message" */
   events?: string[];
   /** Optional parser for incoming event data. Default: JSON.parse */
@@ -46,6 +67,18 @@ export interface SseClientConfig {
   callbacks?: EventCallbackConfig[];
   /** Lifecycle hooks for the SSE client */
   hooks?: SseClientHooks;
+  /**
+   * Idle timeout in milliseconds for the `fetch` transport.
+   * If no data (including heartbeats) is received within this window,
+   * the connection is aborted and a reconnect is scheduled.
+   * **Only used with `transport: 'fetch'`**. Default: 0 (disabled).
+   */
+  idleTimeoutMs?: number;
+  /**
+   * Optional logger for library diagnostics. Replaces default `console.*` usage.
+   * Set to `false` to silence all library logging.
+   */
+  logger?: SseLogger | false;
 }
 
 export interface ApiCallbackConfig<T = any> {
@@ -87,8 +120,22 @@ export const DEFAULT_RECONNECTION_CONFIG: SseReconnectionConfig = {
   jitterRatio: 0.2,
 };
 
+/** Pluggable logger interface for the SSE client library. */
+export interface SseLogger {
+  warn: (message: string, ...args: unknown[]) => void;
+  error: (message: string, ...args: unknown[]) => void;
+}
+
+/** Default logger that delegates to console. */
+export const DEFAULT_SSE_LOGGER: SseLogger = {
+  warn: (msg, ...args) => console.warn(msg, ...args),
+  error: (msg, ...args) => console.error(msg, ...args),
+};
+
 export const DEFAULT_SSE_CLIENT_CONFIG: Readonly<Required<Omit<SseClientConfig, 'url'>>> = {
   withCredentials: false,
+  transport: 'eventsource',
+  headers: {},
   events: [],
   // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   parse: (data: string) => JSON.parse(data),
@@ -96,6 +143,8 @@ export const DEFAULT_SSE_CLIENT_CONFIG: Readonly<Required<Omit<SseClientConfig, 
   reconnection: DEFAULT_RECONNECTION_CONFIG,
   callbacks: [],
   hooks: {},
+  idleTimeoutMs: 0,
+  logger: DEFAULT_SSE_LOGGER,
 };
 
 export const SSE_CLIENT_CONFIG = new InjectionToken<Partial<SseClientConfig>>(

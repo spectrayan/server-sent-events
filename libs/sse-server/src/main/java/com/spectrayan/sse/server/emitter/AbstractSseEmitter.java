@@ -70,11 +70,13 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      * @param sinkCustomizer optional provider of {@code SseEmitterCustomizer} to build per-topic sinks
      * @param sessionHooks optional ordered provider of session lifecycle hooks
      * @param sessionIdGenerator generator used to assign session identifiers
+     * @param metrics optional SSE metrics recorder (null when Micrometer is absent)
      */
     public AbstractSseEmitter(SseServerProperties properties,
                               org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseEmitterCustomizer> sinkCustomizer,
                               org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
-                              com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator) {
+                              com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator,
+                              com.spectrayan.sse.server.metrics.SseMetrics metrics) {
         this.properties = properties;
         this.sinkCustomizer = sinkCustomizer != null ? sinkCustomizer.getIfAvailable() : null;
         this.sessionHooks = sessionHooks != null ? sessionHooks.orderedStream().toList() : java.util.List.of();
@@ -83,8 +85,8 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
         this.sinkFactory = new SinkFactory(properties, this.sinkCustomizer);
         this.topicManager = new TopicManager(this.sinkFactory);
         this.streamComposer = new StreamComposer(properties);
-        this.sessionTracker = new SessionTracker(this.sessionHooks, this.topicManager);
-        this.emissionService = new EmissionService();
+        this.sessionTracker = new SessionTracker(this.sessionHooks, this.topicManager, metrics);
+        this.emissionService = new EmissionService(metrics, properties.getEmitter().getEmitRetries());
     }
 
 
