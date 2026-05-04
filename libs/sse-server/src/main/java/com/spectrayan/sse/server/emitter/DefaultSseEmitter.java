@@ -1,5 +1,6 @@
 package com.spectrayan.sse.server.emitter;
 
+import com.spectrayan.sse.server.bridge.SseBroadcastBridge;
 import com.spectrayan.sse.server.config.SseServerProperties;
 import com.spectrayan.sse.server.customize.SseEmitterCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
@@ -28,12 +29,14 @@ public class DefaultSseEmitter extends AbstractSseEmitter implements SseEmitter 
      * @param sessionHooks optional hooks invoked on session join/leave
      * @param sessionIdGenerator optional generator used by components needing to derive a session id
      * @param metrics optional SSE metrics recorder (null when Micrometer is absent)
+     * @param bridge optional broadcast bridge for cross-instance event fan-out
      */
     public DefaultSseEmitter(SseServerProperties properties,
                              ObjectProvider<SseEmitterCustomizer> sinkCustomizer,
                              ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
                              com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator,
-                             com.spectrayan.sse.server.metrics.SseMetrics metrics) {
-        super(properties, sinkCustomizer, sessionHooks, sessionIdGenerator, metrics);
+                             com.spectrayan.sse.server.metrics.SseMetrics metrics,
+                             SseBroadcastBridge bridge) {
+        super(properties, sinkCustomizer, sessionHooks, sessionIdGenerator, metrics, bridge);
     }
 }

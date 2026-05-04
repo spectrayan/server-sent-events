@@ -1,5 +1,7 @@
 package com.spectrayan.sse.server.emitter;
 
+import com.spectrayan.sse.server.bridge.SseBroadcastBridge;
+import com.spectrayan.sse.server.bridge.SseBridgeMessage;
 import com.spectrayan.sse.server.config.SseServerProperties;
 import com.spectrayan.sse.server.error.EmissionRejectedException;
 import com.spectrayan.sse.server.error.InvalidTopicException;
@@ -14,6 +16,7 @@ import reactor.core.publisher.SignalType;
 
 import java.util.Collection;
 import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -63,6 +66,10 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
     private final SessionTracker sessionTracker;
     private final EmissionService emissionService;
 
+    // Cross-instance broadcast bridge
+    private final SseBroadcastBridge bridge;
+    private final String instanceId;
+
     /**
      * Create a new emitter with the given dependencies and customization hooks.
      *
@@ -71,12 +78,14 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      * @param sessionHooks optional ordered provider of session lifecycle hooks
      * @param sessionIdGenerator generator used to assign session identifiers
      * @param metrics optional SSE metrics recorder (null when Micrometer is absent)
+     * @param bridge optional broadcast bridge for cross-instance event fan-out; may be {@code null}
      */
     public AbstractSseEmitter(SseServerProperties properties,
                               org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseEmitterCustomizer> sinkCustomizer,
                               org.springframework.beans.factory.ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
                               com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator,
-                              com.spectrayan.sse.server.metrics.SseMetrics metrics) {
+                              com.spectrayan.sse.server.metrics.SseMetrics metrics,
+                              SseBroadcastBridge bridge) {
         this.properties = properties;
         this.sinkCustomizer = sinkCustomizer != null ? sinkCustomizer.getIfAvailable() : null;
         this.sessionHooks = sessionHooks != null ? sessionHooks.orderedStream().toList() : java.util.List.of();
@@ -86,7 +95,18 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
         this.topicManager = new TopicManager(this.sinkFactory);
         this.streamComposer = new StreamComposer(properties);
         this.sessionTracker = new SessionTracker(this.sessionHooks, this.topicManager, metrics);
-        this.emissionService = new EmissionService(metrics, properties.getEmitter().getEmitRetries());
+
+        // Resolve instance id: configured > auto-generated UUID
+        String configuredId = properties.getBridge() != null ? properties.getBridge().getInstanceId() : null;
+        this.instanceId = (configuredId != null && !configuredId.isBlank()) ? configuredId : UUID.randomUUID().toString();
+        this.bridge = bridge;
+        this.emissionService = new EmissionService(metrics, properties.getEmitter().getEmitRetries(), bridge, this.instanceId);
+
+        // Subscribe to remote events from other instances
+        if (bridge != null) {
+            bridge.subscribe(this::onRemoteEvent);
+            log.info("SSE broadcast bridge active: instanceId={} bridge={}", this.instanceId, bridge.getClass().getSimpleName());
+        }
     }
 
 
@@ -330,11 +350,57 @@ public abstract class AbstractSseEmitter implements SseEmitter, com.spectrayan.s
      * Gracefully close all active SSE channels on application shutdown to avoid
      * blocking graceful shutdown with in-flight requests.
      * <p>
-     * This completes each sink and clears the topic registry. Any subsequent attempt to connect
-     * will recreate topics on demand.
+     * This completes each sink, clears the topic registry, and closes the broadcast
+     * bridge if one is configured. Any subsequent attempt to connect will recreate
+     * topics on demand.
      */
     @PreDestroy
     public void shutdown() {
         topicManager.shutdownAll();
+        if (bridge != null) {
+            try {
+                bridge.close();
+            } catch (Throwable t) {
+                log.warn("Error closing broadcast bridge: {}", t.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Handle an event received from a remote instance via the broadcast bridge.
+     * <p>
+     * Skips events originating from this instance (self-deduplication via instance id).
+     * If the topic has no local subscribers, the event is silently ignored.
+     * Otherwise, the event is injected into the local topic sink so that all
+     * locally connected SSE clients receive it.
+     *
+     * @param msg the remote event envelope
+     */
+    private void onRemoteEvent(SseBridgeMessage msg) {
+        // Self-deduplication: skip events we published ourselves
+        if (instanceId.equals(msg.originInstanceId())) return;
+
+        TopicChannel channel = topicManager.get(msg.topic());
+        if (channel == null) {
+            // No local subscribers for this topic — nothing to deliver
+            if (log.isTraceEnabled()) {
+                log.trace("Ignoring remote event for topic {} (no local subscribers)", msg.topic());
+            }
+            return;
+        }
+
+        try {
+            ServerSentEvent.Builder<Object> builder = ServerSentEvent.<Object>builder(msg.payload());
+            if (msg.eventName() != null) builder.event(msg.eventName());
+            if (msg.id() != null) builder.id(msg.id());
+            Sinks.EmitResult result = channel.sink.tryEmitNext(builder.build());
+            if (result.isFailure()) {
+                log.debug("Failed to inject remote event for topic {}: {}", msg.topic(), result);
+            } else if (log.isDebugEnabled()) {
+                log.debug("Injected remote event into topic {} from instance {}", msg.topic(), msg.originInstanceId());
+            }
+        } catch (Throwable t) {
+            log.warn("Error injecting remote event for topic {}: {}", msg.topic(), t.getMessage());
+        }
     }
 }

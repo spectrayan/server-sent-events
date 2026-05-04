@@ -1,5 +1,6 @@
 package com.spectrayan.sse.server.emitter;
 
+import com.spectrayan.sse.server.bridge.NoOpBroadcastBridge;
 import com.spectrayan.sse.server.config.SseServerProperties;
 import com.spectrayan.sse.server.customize.SseEmitterCustomizer;
 import org.junit.jupiter.api.Test;
@@ -24,7 +25,7 @@ class DefaultSseEmitterIntegrationTest {
 
     private DefaultSseEmitter newEmitter() {
         SseServerProperties props = new SseServerProperties();
-        return new DefaultSseEmitter(props, emptyProvider(), emptyProvider(), (exchange, topic) -> "sid", null);
+        return new DefaultSseEmitter(props, emptyProvider(), emptyProvider(), (exchange, topic) -> "sid", null, new NoOpBroadcastBridge());
     }
 
     @Test

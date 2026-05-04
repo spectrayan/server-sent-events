@@ -1,5 +1,7 @@
 package com.spectrayan.sse.server.config;
 
+import com.spectrayan.sse.server.bridge.NoOpBroadcastBridge;
+import com.spectrayan.sse.server.bridge.SseBroadcastBridge;
 import com.spectrayan.sse.server.controller.SseEndpointHandler;
 import com.spectrayan.sse.server.customize.SseEmitterCustomizer;
 import com.spectrayan.sse.server.customize.SseHeaderCustomizer;
@@ -50,8 +52,22 @@ public class SseServerAutoConfiguration {
     public SseEmitter sseEmitter(SseServerProperties properties, ObjectProvider<SseEmitterCustomizer> sinkCustomizer,
                                  ObjectProvider<com.spectrayan.sse.server.customize.SseSessionHook> sessionHooks,
                                  com.spectrayan.sse.server.customize.SessionIdGenerator sessionIdGenerator,
-                                 ObjectProvider<com.spectrayan.sse.server.metrics.SseMetrics> sseMetrics) {
-        return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks, sessionIdGenerator, sseMetrics.getIfAvailable());
+                                 ObjectProvider<com.spectrayan.sse.server.metrics.SseMetrics> sseMetrics,
+                                 SseBroadcastBridge sseBroadcastBridge) {
+        return new DefaultSseEmitter(properties, sinkCustomizer, sessionHooks, sessionIdGenerator, sseMetrics.getIfAvailable(), sseBroadcastBridge);
+    }
+
+    /**
+     * Default no-op broadcast bridge for single-instance deployments.
+     * Replaced automatically when a bridge module (e.g. {@code sse-server-bridge-cloud-stream})
+     * is on the classpath and provides its own {@link SseBroadcastBridge} bean.
+     *
+     * @since 2.0.0
+     */
+    @Bean
+    @ConditionalOnMissingBean(SseBroadcastBridge.class)
+    public SseBroadcastBridge sseBroadcastBridge() {
+        return new NoOpBroadcastBridge();
     }
 
     @Bean

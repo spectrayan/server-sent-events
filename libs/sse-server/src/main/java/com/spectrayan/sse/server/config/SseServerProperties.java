@@ -49,6 +49,9 @@ public class SseServerProperties {
     // Metrics configuration
     private Metrics metrics = new Metrics();
 
+    // Cross-instance broadcast bridge configuration
+    private Bridge bridge = new Bridge();
+
     public void setHeaders(List<SseHeader> headers) {
         this.headers = (headers != null ? headers : new ArrayList<>());
     }
@@ -167,5 +170,34 @@ public class SseServerProperties {
         private boolean enabled = true;
         /** Tag counters with per-topic labels. Disable if topic cardinality is very high. */
         private boolean perTopic = true;
+    }
+
+    /**
+     * Configuration for the cross-instance broadcast bridge.
+     * <p>
+     * When deployed on multiple pods/instances behind a load balancer, a broadcast
+     * bridge ensures that SSE events emitted on one instance are delivered to clients
+     * connected to other instances. The bridge is backed by a
+     * {@link com.spectrayan.sse.server.bridge.SseBroadcastBridge} implementation.
+     *
+     * @since 2.0.0
+     */
+    @Data
+    public static class Bridge {
+        /** Enable cross-instance broadcast bridge. Auto-enabled when a bridge bean is detected. */
+        private boolean enabled = true;
+        /**
+         * Logical channel/destination name used by the bridge for event fan-out.
+         * Maps to a topic/exchange/channel in the underlying messaging system
+         * (e.g. Kafka topic, RabbitMQ exchange, Google Pub/Sub topic).
+         */
+        private String channelName = "sse-broadcast";
+        /**
+         * Unique identifier for this application instance.
+         * Used to distinguish events emitted locally from events received from
+         * remote instances (self-deduplication). If not set, a random UUID is
+         * generated at startup.
+         */
+        private String instanceId;
     }
 }

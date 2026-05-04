@@ -29,7 +29,7 @@ class EmissionServiceTest {
         props = new SseServerProperties();
         sinkFactory = new SinkFactory(props, null);
         topicManager = new TopicManager(sinkFactory);
-        emissionService = new EmissionService(null, SseServerProperties.Emitter.DEFAULT_EMIT_RETRIES);
+        emissionService = new EmissionService(null, SseServerProperties.Emitter.DEFAULT_EMIT_RETRIES, null, null);
     }
 
     @Test
@@ -88,7 +88,7 @@ class EmissionServiceTest {
     @Test
     void emitWithZeroRetriesStillWorksWithoutContention() {
         // With retries disabled, normal (non-contended) emission should still succeed
-        EmissionService noRetry = new EmissionService(null, 0);
+        EmissionService noRetry = new EmissionService(null, 0, null, null);
         String topic = "no-retry";
         TopicChannel ch = topicManager.getOrCreate(topic);
         Flux<ServerSentEvent<Object>> flux = ch.sink.asFlux();
@@ -125,7 +125,7 @@ class EmissionServiceTest {
         replayProps.getEmitter().setReplaySize(10);
         SinkFactory replaySinkFactory = new SinkFactory(replayProps, null);
         TopicManager replayTopicManager = new TopicManager(replaySinkFactory);
-        EmissionService replayService = new EmissionService(null, SseServerProperties.Emitter.DEFAULT_EMIT_RETRIES);
+        EmissionService replayService = new EmissionService(null, SseServerProperties.Emitter.DEFAULT_EMIT_RETRIES, null, null);
 
         String topic = "replay-concurrent";
         TopicChannel ch = replayTopicManager.getOrCreate(topic);

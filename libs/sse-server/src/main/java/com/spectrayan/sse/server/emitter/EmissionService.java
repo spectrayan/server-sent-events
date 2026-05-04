@@ -1,5 +1,7 @@
 package com.spectrayan.sse.server.emitter;
 
+import com.spectrayan.sse.server.bridge.SseBroadcastBridge;
+import com.spectrayan.sse.server.bridge.SseBridgeMessage;
 import com.spectrayan.sse.server.config.SseServerProperties;
 import com.spectrayan.sse.server.error.EmissionRejectedException;
 import com.spectrayan.sse.server.error.TopicNotFoundException;
@@ -29,6 +31,8 @@ final class EmissionService {
 
     private final com.spectrayan.sse.server.metrics.SseMetrics metrics;
     private final int maxEmitRetries;
+    private final SseBroadcastBridge bridge;
+    private final String instanceId;
 
     /**
      * Create a new EmissionService.
@@ -38,10 +42,15 @@ final class EmissionService {
      *                       0 to disable retry (fail immediately on contention).
      *                       Clamped to [{@code 0}, {@link SseServerProperties.Emitter#MAX_EMIT_RETRIES}]
      *                       by the properties layer.
+     * @param bridge broadcast bridge for cross-instance fan-out; may be {@code null}
+     * @param instanceId unique identifier for this instance used in bridge messages; may be {@code null}
      */
-    EmissionService(com.spectrayan.sse.server.metrics.SseMetrics metrics, int maxEmitRetries) {
+    EmissionService(com.spectrayan.sse.server.metrics.SseMetrics metrics, int maxEmitRetries,
+                    SseBroadcastBridge bridge, String instanceId) {
         this.metrics = metrics;
         this.maxEmitRetries = maxEmitRetries;
+        this.bridge = bridge;
+        this.instanceId = instanceId;
     }
 
     /**
@@ -80,6 +89,8 @@ final class EmissionService {
             throw mapEmitFailure(topicId, result, eventName, id);
         }
         if (metrics != null) metrics.recordEmit(topicId);
+        // Fan-out to other instances via broadcast bridge
+        publishToBridge(topicId, eventName, payload, id);
     }
 
     /**
@@ -109,6 +120,9 @@ final class EmissionService {
             Sinks.EmitResult res = emitWithSerializationRetry(ch.sink, event, id);
             if (res.isFailure()) {
                 log.warn("Broadcast emit rejected for topic {} result={}", id, res);
+            } else {
+                // Fan-out each topic's broadcast to other instances
+                publishToBridge(id, null, payload, null);
             }
         }
     }
@@ -194,5 +208,22 @@ final class EmissionService {
                 "eventName", safeEventName,
                 "id", safeId
         ));
+    }
+
+    /**
+     * Publish an event to the broadcast bridge for cross-instance delivery.
+     * <p>
+     * Failures are logged at WARN level but never prevent local delivery.
+     * This method is a no-op when no bridge is configured.
+     */
+    private void publishToBridge(String topicId, String eventName, Object payload, String id) {
+        if (bridge == null) return;
+        try {
+            bridge.publish(new SseBridgeMessage(
+                    instanceId, topicId, eventName, payload, id,
+                    System.currentTimeMillis()));
+        } catch (Throwable t) {
+            log.warn("Bridge publish failed for topic {}: {}", topicId, t.getMessage());
+        }
     }
 }
