@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.spectrayan.sse</groupId>
+        <artifactId>spectrayan-sse-parent</artifactId>
+        <version>2.0.0</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+    <artifactId>sse-server-bridge-redis</artifactId>
+    <name>sse-server-bridge-redis</name>
+    <description>Redis Pub/Sub bridge for the Spectrayan SSE server library. Enables cross-instance SSE event fan-out via Redis. Drop this module in for automatic multi-pod SSE support — no Spring Cloud Stream required.</description>
+    <url>https://github.com/spectrayan/server-sent-events</url>
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <id>maintainers</id>
+            <name>Spectrayan SSE Maintainers</name>
+            <email>support@spectrayan.com</email>
+            <organization>spectrayan-sse</organization>
+        </developer>
+    </developers>
+    <scm>
+        <connection>scm:git:https://github.com/spectrayan/server-sent-events.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/spectrayan/server-sent-events.git</developerConnection>
+        <tag>2.0.0</tag>
+        <url>https://github.com/spectrayan/server-sent-events</url>
+    </scm>
+    <properties>
+        <java.version>21</java.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    </properties>
+
+    <dependencies>
+        <!-- The core SSE server (for SPI types: SseBroadcastBridge, SseBridgeMessage, etc.) -->
+        <dependency>
+            <groupId>com.spectrayan.sse</groupId>
+            <artifactId>sse-server</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
+        <!-- Spring Data Redis Reactive for Pub/Sub -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis-reactive</artifactId>
+        </dependency>
+
+        <!-- Spring Boot auto-configuration support -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- Optional: configuration metadata generation -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test dependencies -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.springframework.boot</groupId>
+                            <artifactId>spring-boot-configuration-processor</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+            <!-- Attach sources for Central -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>3.6.3</version>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                        <configuration>
+                            <failOnError>false</failOnError>
+                            <encoding>${project.build.sourceEncoding}</encoding>
+                            <source>${java.version}</source>
+                            <additionalOptions>
+                                <additionalOption>-Xdoclint:all,-missing</additionalOption>
+                            </additionalOptions>
+                            <tags>
+                                <tag>
+                                    <name>implNote</name>
+                                    <placement>a</placement>
+                                    <head>Implementation Note:</head>
+                                </tag>
+                            </tags>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+</project>
