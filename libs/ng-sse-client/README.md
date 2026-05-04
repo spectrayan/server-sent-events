@@ -1,72 +1,286 @@
-# @spectrayan/ng-sse-client
+<div align="center">
 
-A small, typed, zone-aware Server‑Sent Events (SSE) client for Angular.
+# 📱 @spectrayan/ng-sse-client
 
-- Typed APIs: `stream<T>(url)` and `streamEvent<T>(url, event)`
-- Auto‑reconnect with exponential backoff + jitter
-- Handles default `message` and custom named events
-- Adds `?lastEventId=...` on reconnect to resume from the last received event
-- Zone-friendly: network/parsing outside Angular, emissions re-enter the zone
-- Optional lifecycle hooks (onConnect, onOpen, onMessage, onError, onReconnectAttempt, onClose)
-- Optional event-driven API callbacks with retry (e.g., mark notifications as read)
+**A typed, zone-aware Server-Sent Events client for Angular**
+
+[![npm](https://img.shields.io/badge/npm-@spectrayan/ng--sse--client-CB3837?logo=npm&logoColor=white)](https://www.npmjs.com/package/@spectrayan/ng-sse-client)
+[![Angular](https://img.shields.io/badge/Angular-16_to_20-DD0031?logo=angular&logoColor=white)](https://angular.dev)
+[![RxJS](https://img.shields.io/badge/RxJS-7-B7178C?logo=reactivex&logoColor=white)](https://rxjs.dev)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+Type-safe SSE streams with automatic reconnection, exponential backoff,
+zone-optimized performance, and optional event-driven callbacks.
+
+</div>
 
 ---
 
-## Install
+## 📦 Installation
+
 ```bash
 npm install @spectrayan/ng-sse-client
 ```
 
-Peer dependencies
-- Angular >=16 and <21 (incl. 20)
-- RxJS 7
+**Peer dependencies:** Angular ≥16 \<21, RxJS 7
 
 ---
 
-## Quick start
-```ts
+## 🚀 Quick Start
+
+### Basic stream
+
+```typescript
 import { Component } from '@angular/core';
 import { SseClient } from '@spectrayan/ng-sse-client';
 
 @Component({
   selector: 'app-demo',
-  template: `<ul><li *ngFor="let m of messages">{{ m }}</li></ul>`
+  template: `
+    <ul>
+      <li *ngFor="let m of messages">{{ m }}</li>
+    </ul>
+  `
 })
 export class DemoComponent {
   messages: string[] = [];
+
   constructor(sse: SseClient) {
-    sse.stream<string>('http://localhost:8080/sse/general').subscribe(m => {
-      this.messages.unshift(m);
-    });
+    sse.stream<string>('http://localhost:8080/sse/general')
+      .subscribe(m => this.messages.unshift(m));
   }
 }
 ```
 
-Named events
-```ts
-sse
-  .streamEvent<{ id: string; text: string }>('http://localhost:8080/sse/notifications', 'notification')
+### Named events
+
+```typescript
+sse.streamEvent<Notification>('http://localhost:8080/sse/notifications', 'notification')
   .subscribe(n => console.log(n.id, n.text));
 ```
 
-Typed parsing (safe JSON-or-string)
-```ts
-const parse = <T>(txt: string): T => {
-  try { return JSON.parse(txt) as T; } catch { return txt as unknown as T; }
-};
+### Typed parsing
 
-sse.stream<any>('http://localhost:8080/sse/general', { parse }).subscribe(v => console.log(v));
+```typescript
+sse.stream<MyEvent>('http://localhost:8080/sse/events', {
+  parse: (raw) => JSON.parse(raw) as MyEvent,
+}).subscribe(event => console.log(event));
 ```
 
 ---
 
-## Real-world example (from the sample app)
-See `samples/ng-sse-client-app/src/app/app.ts` for a complete demo. Summarized usage:
+## ✨ Features
 
-```ts
+| Feature | Description |
+|---------|-------------|
+| **Type-safe streams** | Generic `stream<T>()` and `streamEvent<T>()` with compile-time safety |
+| **Auto-reconnect** | Exponential backoff with configurable jitter, max retries, and delay limits |
+| **Zone-optimized** | Network I/O and parsing run outside Angular zone; emissions re-enter for change detection |
+| **Named events** | Subscribe to specific SSE event types (`notification`, `orderUpdate`, etc.) |
+| **Last-Event-ID** | Automatic propagation via query param for resumable streams |
+| **Event callbacks** | Trigger HTTP calls (POST/PUT/PATCH) when specific events arrive — with retry |
+| **Lifecycle hooks** | Observe connect, open, message, error, reconnect, and close events |
+| **Global defaults** | Configure once via DI, override per-stream |
+| **Credential support** | `withCredentials` for cookie-based auth with CORS |
+| **Clean teardown** | Unsubscribe closes `EventSource` and removes all listeners automatically |
+
+---
+
+## ⚙️ Configuration
+
+### Global defaults via DI
+
+Use `provideSseClient()` in your `app.config.ts`:
+
+```typescript
+import { ApplicationConfig } from '@angular/core';
+import { provideSseClient } from '@spectrayan/ng-sse-client';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideSseClient({
+      withCredentials: true,
+      lastEventIdParamName: 'lastEventId',
+      reconnection: {
+        enabled: true,
+        maxRetries: -1,           // -1 = infinite
+        initialDelayMs: 1000,
+        maxDelayMs: 30000,
+        backoffMultiplier: 2,
+        jitterRatio: 0.2,
+      },
+    }),
+  ],
+};
+```
+
+Or provide the token directly:
+
+```typescript
+import { SSE_CLIENT_CONFIG } from '@spectrayan/ng-sse-client';
+
+providers: [
+  { provide: SSE_CLIENT_CONFIG, useValue: { withCredentials: true } },
+]
+```
+
+> **Per-call options always override global defaults.**
+
+### Per-call options
+
+```typescript
+sse.stream<any>('http://localhost:8080/sse/user', {
+  withCredentials: true,
+  events: ['notification'],        // named events (besides default "message")
+  lastEventIdParamName: 'lastEventId',
+  parse: (txt) => JSON.parse(txt),
+  reconnection: {
+    enabled: true,
+    maxRetries: -1,
+    initialDelayMs: 1000,
+    maxDelayMs: 30000,
+    backoffMultiplier: 2,
+    jitterRatio: 0.2,
+  },
+  callbacks: [ /* see Event Callbacks section */ ],
+  hooks: { /* see Lifecycle Hooks section */ },
+});
+```
+
+---
+
+## 📡 API Reference
+
+### `SseClient`
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `stream<T>(url, options?)` | `Observable<T>` | Subscribes to default `message` events + any `options.events` |
+| `streamEvent<T>(url, event, options?)` | `Observable<T>` | Subscribes to a single named event only |
+
+Both return a **cold** `Observable` — the `EventSource` opens on subscribe and closes on unsubscribe.
+
+### `StreamOptions<T>`
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `parse` | `(data: string) => T` | `JSON.parse` | Custom parser for incoming payloads |
+| `withCredentials` | `boolean` | `false` | Send cookies/auth headers with CORS |
+| `events` | `string[]` | `[]` | Additional named events to listen for |
+| `lastEventIdParamName` | `string` | `'lastEventId'` | Query param name for Last-Event-ID on reconnect |
+| `reconnection` | `SseReconnectionConfig` | *(see below)* | Reconnection strategy |
+| `callbacks` | `EventCallbackConfig[]` | `[]` | Event-driven HTTP callbacks |
+| `hooks` | `SseClientHooks` | — | Lifecycle event observers |
+
+---
+
+## 🔄 Reconnection
+
+The client uses exponential backoff with jitter for resilient reconnection:
+
+```typescript
+interface SseReconnectionConfig {
+  enabled: boolean;          // Enable auto-reconnect
+  maxRetries: number;        // -1 = infinite retries
+  initialDelayMs: number;    // First retry delay (default: 1000)
+  maxDelayMs: number;        // Max delay cap (default: 30000)
+  backoffMultiplier: number; // Multiplier per attempt (default: 2)
+  jitterRatio: number;       // Random variance ±% (default: 0.2)
+}
+```
+
+**How it works:** Retry delay = `min(initialDelay × multiplier^attempt, maxDelay) × (1 ± jitterRatio)`
+
+### Last-Event-ID
+
+If the server includes `id:` fields in SSE frames, the client tracks the last received ID and appends `?lastEventId=<id>` to the URL on reconnect. This enables the server to replay missed events.
+
+---
+
+## 📞 Event Callbacks
+
+Trigger HTTP calls automatically when events arrive — useful for acknowledgements, analytics, read receipts, etc.
+
+```typescript
+import { ApiCallbackConfig } from '@spectrayan/ng-sse-client';
+
+const markReadCallback: ApiCallbackConfig<{ id: string }> = {
+  method: 'POST',
+  url: 'http://localhost:8080/api/notifications/mark-read',
+  transformPayload: (event) => ({ notificationId: event.id }),
+  headers: { 'Content-Type': 'application/json' },
+  timeout: 5000,
+};
+
+sse.stream<any>('http://localhost:8080/sse/user', {
+  events: ['notification'],
+  callbacks: [{
+    eventType: 'notification',
+    condition: (data) => !!(data?.id),
+    apiCallback: markReadCallback,
+    retry: { enabled: true, maxRetries: 3, delayMs: 1000 },
+  }],
+}).subscribe(/* ... */);
+```
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `eventType` | `string?` | Match specific event type (omit to apply to all) |
+| `condition` | `(data: T) => boolean` | Guard — callback only fires if this returns `true` |
+| `apiCallback.method` | `POST / PUT / PATCH` | HTTP method |
+| `apiCallback.url` | `string` | Target URL |
+| `apiCallback.transformPayload` | `(data: T) => any` | Transform event data into request body |
+| `retry.enabled` | `boolean` | Retry failed HTTP calls |
+| `retry.maxRetries` | `number` | Max retry attempts |
+| `retry.delayMs` | `number` | Fixed delay between retries |
+
+> **Callback failures are logged but never error the SSE stream.**
+
+---
+
+## 🔗 Lifecycle Hooks
+
+Observe every stage of the connection lifecycle:
+
+```typescript
+sse.stream<any>('http://localhost:8080/sse/user', {
+  hooks: {
+    onConnect: (url) =>
+      console.log('[SSE] Connecting to', url),
+    onOpen: ({ url, attempt }) =>
+      console.log('[SSE] Connected after', attempt, 'attempts'),
+    onMessage: ({ eventType, data }) =>
+      console.log('[SSE] Event:', eventType, data),
+    onError: ({ willRetry, nextDelayMs }) =>
+      console.warn('[SSE] Error, willRetry:', willRetry, 'in', nextDelayMs, 'ms'),
+    onReconnectAttempt: ({ attempt, delayMs }) =>
+      console.log('[SSE] Reconnecting, attempt', attempt, 'after', delayMs, 'ms'),
+    onClose: ({ reason }) =>
+      console.log('[SSE] Closed:', reason),
+  },
+});
+```
+
+| Hook | When | Payload |
+|------|------|---------|
+| `onConnect` | `EventSource` is about to be created | `url: string` |
+| `onOpen` | Connection established | `{ url, attempt }` |
+| `onMessage` | Event received (before parse) | `{ eventType, data, rawEvent }` |
+| `onError` | Connection error | `{ event, attempt, willRetry, nextDelayMs? }` |
+| `onReconnectAttempt` | About to retry | `{ attempt, delayMs }` |
+| `onClose` | Stream closed | `{ reason: 'unsubscribe' \| 'complete' \| 'retriesExceeded' }` |
+
+Hooks can be set globally via DI or per-stream. Per-stream hooks override global hooks.
+
+---
+
+## 🌍 Real-World Example
+
+From the [sample app](../../samples/ng-sse-client-app/src/app/app.ts):
+
+```typescript
 import { ApiCallbackConfig, SseClient } from '@spectrayan/ng-sse-client';
 
-// Configure a server-side side-effect to run when a notification arrives
 const markReadCallback: ApiCallbackConfig<{ id: string }> = {
   method: 'POST',
   url: 'http://localhost:8080/api/notifications/mark-read',
@@ -78,236 +292,92 @@ const markReadCallback: ApiCallbackConfig<{ id: string }> = {
 sse.stream<any>(`http://localhost:8080/sse/john`, {
   events: ['notification'],
   parse: (txt) => { try { return JSON.parse(txt); } catch { return txt; } },
-  reconnection: { enabled: true, maxRetries: -1, initialDelayMs: 1000, maxDelayMs: 30000, backoffMultiplier: 2, jitterRatio: 0.2 },
-  callbacks: [
-    {
-      eventType: 'notification',
-      condition: (d: any) => !!(d && typeof d === 'object' && 'id' in d),
-      apiCallback: markReadCallback,
-      retry: { enabled: true, maxRetries: 3, delayMs: 1000 },
-    },
-  ],
-}).subscribe(/* ... */);
-```
-
-- The client collects `message` and `notification` events, parses payloads, and updates the UI.
-- When a `notification` arrives, it triggers a POST to mark it as read. The callback can retry without failing the SSE stream.
-
----
-
-## Per-call options
-```ts
-sse.stream<any>('http://localhost:8080/sse/user', {
-  withCredentials: true,
-  events: ['notification'],      // named events ("message" is implicit and handled by default)
-  lastEventIdParamName: 'lastEventId',
-  parse: (txt) => { try { return JSON.parse(txt); } catch { return txt; } },
   reconnection: {
     enabled: true,
-    maxRetries: -1,             // -1 = infinite retries
+    maxRetries: -1,
     initialDelayMs: 1000,
     maxDelayMs: 30000,
     backoffMultiplier: 2,
     jitterRatio: 0.2,
   },
-  callbacks: [ /* see Event callbacks section */ ],
+  callbacks: [{
+    eventType: 'notification',
+    condition: (d: any) => !!(d && typeof d === 'object' && 'id' in d),
+    apiCallback: markReadCallback,
+    retry: { enabled: true, maxRetries: 3, delayMs: 1000 },
+  }],
+}).subscribe(event => {
+  // Update UI with incoming events
 });
 ```
 
-## Global defaults via DI
-Use the helper `provideSseClient(...)` in your `app.config.ts`:
-```ts
-import { ApplicationConfig } from '@angular/core';
-import { provideSseClient } from '@spectrayan/ng-sse-client';
-
-export const appConfig: ApplicationConfig = {
-  providers: [
-    provideSseClient({
-      withCredentials: true,
-      lastEventIdParamName: 'lastEventId',
-      reconnection: { enabled: true, maxRetries: -1, initialDelayMs: 1000, maxDelayMs: 30000, backoffMultiplier: 2, jitterRatio: 0.2 },
-    }),
-  ],
-};
-```
-
-Alternatively, you can still provide the token directly:
-```ts
-import { ApplicationConfig } from '@angular/core';
-import { SSE_CLIENT_CONFIG } from '@spectrayan/ng-sse-client';
-
-export const appConfig: ApplicationConfig = {
-  providers: [
-    { provide: SSE_CLIENT_CONFIG, useValue: { withCredentials: true } },
-  ],
-};
-```
-
-Values passed to `stream()`/`streamEvent()` override global defaults.
-
 ---
 
-## API reference
-
-### SseClient
-- `stream<T>(url: string, options?: StreamOptions<T>): Observable<T>`
-  - Subscribes to default `message` events plus any `options.events` (excluding duplicate `message`).
-- `streamEvent<T>(url: string, event: string, options?: StreamOptions<T>): Observable<T>`
-  - Subscribes only to the given named event.
-
-Both return a cold `Observable` that opens an `EventSource` connection on subscribe and closes it on unsubscribe/complete/error.
-
-### StreamOptions<T>
-`StreamOptions<T>` extends `Partial<Omit<SseClientConfig, 'url' | 'parse'>>` and adds:
-- `parse?: (data: string) => T` — parser for incoming payload. Defaults to `JSON.parse` (see `DEFAULT_SSE_CLIENT_CONFIG`).
-
-Practical fields you will commonly use:
-- `withCredentials?: boolean`
-- `events?: string[]` — named events to attach listeners for (besides default `message`).
-- `lastEventIdParamName?: string` — query param name for lastEventId on reconnect.
-- `reconnection?: SseReconnectionConfig`
-- `callbacks?: EventCallbackConfig[]` — see next section.
-- `hooks?: SseClientHooks` — lifecycle hooks for connection and events.
-
-### Event callbacks (optional)
-You can trigger HTTP calls when events arrive — useful for acknowledgement flows, analytics, etc.
-
-Types:
-```ts
-export interface ApiCallbackConfig<T = any> {
-  method: 'POST' | 'PUT' | 'PATCH';
-  url: string;
-  transformPayload?: (eventData: T) => any;
-  headers?: Record<string, string>;
-  withCredentials?: boolean;
-  timeout?: number; // ms
-}
-
-export interface EventCallbackConfig<T = any> {
-  eventType?: string; // if omitted, applies to all events
-  condition?: (eventData: T) => boolean;
-  apiCallback: ApiCallbackConfig<T>;
-  retry?: { enabled: boolean; maxRetries: number; delayMs: number };
-}
-```
-
-Behavior:
-- For each event, the client checks all `callbacks`.
-- If `eventType` is set, it must match the current event.
-- If `condition` is provided, it must return true.
-- The HTTP request is executed via `ApiCallbackService` outside Angular zone.
-- If `retry.enabled`, failed requests will be retried up to `maxRetries` with fixed delay `delayMs`.
-- Callback failures are logged and do not error the SSE stream.
-
-### Lifecycle hooks (optional)
-You can observe connection lifecycle events via hooks, either globally (DI) or per stream.
-
-Types:
-```ts
-export interface SseClientHooks {
-  onConnect?: (url: string) => void;
-  onOpen?: (info: { url: string; attempt: number }) => void;
-  onMessage?: (info: { eventType: string; data: any; rawEvent: MessageEvent }) => void;
-  onError?: (info: { event: Event; attempt: number; willRetry: boolean; nextDelayMs?: number }) => void;
-  onReconnectAttempt?: (info: { attempt: number; delayMs: number }) => void;
-  onClose?: (info: { reason: 'unsubscribe' | 'complete' | 'retriesExceeded' }) => void;
-}
-```
-
-Global hooks via DI:
-```ts
-import { ApplicationConfig } from '@angular/core';
-import { SSE_CLIENT_CONFIG, SseClientHooks } from '@spectrayan/ng-sse-client';
-
-const hooks: SseClientHooks = {
-  onConnect: (url) => console.log('[SSE] connecting to', url),
-  onOpen: ({ attempt }) => console.log('[SSE] open after attempts:', attempt),
-  onMessage: ({ eventType }) => console.log('[SSE] event', eventType),
-  onError: ({ willRetry, nextDelayMs }) => console.warn('[SSE] error, willRetry=', willRetry, 'delay=', nextDelayMs),
-  onReconnectAttempt: ({ attempt, delayMs }) => console.log('[SSE] reconnect attempt', attempt, 'after', delayMs, 'ms'),
-  onClose: ({ reason }) => console.log('[SSE] closed because', reason),
-};
-
-export const appConfig: ApplicationConfig = {
-  providers: [
-    { provide: SSE_CLIENT_CONFIG, useValue: { hooks }},
-  ],
-};
-```
-
-Per-call overrides:
-```ts
-sse.stream<any>('http://localhost:8080/sse/user', {
-  hooks: {
-    onMessage: ({ data }) => console.log('stream got', data),
-  },
-});
-```
-
-### Reconnection strategy
-`SseReconnectionConfig` controls exponential backoff and jitter used when the underlying `EventSource` errors:
-```ts
-export interface SseReconnectionConfig {
-  enabled: boolean;
-  maxRetries: number;        // -1 = infinite
-  initialDelayMs: number;    // default 1000
-  maxDelayMs: number;        // default 30000
-  backoffMultiplier: number; // default 2
-  jitterRatio: number;       // default 0.2 (randomize +-20%)
-}
-```
-The delay for retry N is computed with `computeBackoffDelay()` then bounded by `maxDelayMs` and randomized by `jitterRatio`.
-
-### Last-event ID
-If the server supports Last-Event-ID, the client tracks the last received event id (from `MessageEvent.lastEventId`) and appends `?lastEventId=<id>` to the URL on reconnect. Use `lastEventIdParamName` to change the parameter name.
-
-### Cleanup
-Unsubscribe to close the `EventSource` and remove all listeners. The library sets up teardown logic so there are no dangling connections.
-
----
-
-## Advanced topics
+## 🧩 Advanced Topics
 
 ### Custom EventSource implementation
-If you need to provide a custom `EventSource` (for polyfills, testing, or environments), implement `EventSourceLike` and provide a custom `EventSourceFactory` via DI. See:
-- `libs/ng-sse-client/src/lib/event-source.factory.ts`
-- `libs/ng-sse-client/src/index.ts` exports
 
-### Error handling
-- Parser errors surface as `error` on the returned `Observable`.
-- Network errors trigger the reconnection flow if enabled; otherwise the `Observable` errors and completes.
-- Callback HTTP errors are logged and do not fail the SSE stream.
+For polyfills, testing, or non-browser environments, implement `EventSourceLike` and provide a custom `EventSourceFactory` via DI:
 
-### SSR and environments
-SSE requires a browser-like environment. On the server (Angular Universal), avoid creating `EventSource`. Guard code paths or inject a factory that no-ops on the server.
+```typescript
+import { EventSourceFactory, EVENT_SOURCE_FACTORY } from '@spectrayan/ng-sse-client';
 
-### CORS and credentials
-- If your SSE endpoint requires cookies or auth headers managed by the browser, set `withCredentials: true` in options or global config.
-- Ensure the server sets appropriate CORS headers for EventSource (e.g., `Access-Control-Allow-Origin`, `Access-Control-Allow-Credentials`).
+const customFactory: EventSourceFactory = (url, init) => {
+  return new CustomEventSource(url, init);
+};
 
----
-
-## Sample projects
-- Angular sample app (consumer): `samples/ng-sse-client-app` — demonstrates multiple users, notifications, reconnection, and callbacks. Key file: `samples/ng-sse-client-app/src/app/app.ts`.
-- Spring WebFlux sample server: `samples/sse-sample-server-app` — emits `message` and `notification` events.
-
----
-
-## Development
-Build the library
-```bash
-npx nx build ng-sse-client
+providers: [
+  { provide: EVENT_SOURCE_FACTORY, useValue: customFactory },
+]
 ```
 
-Run tests
+### Error handling
+
+| Scenario | Behavior |
+|----------|----------|
+| Parser error | `Observable` emits `error` |
+| Network error (reconnect enabled) | Automatic reconnection with backoff |
+| Network error (reconnect disabled) | `Observable` errors and completes |
+| Callback HTTP error | Logged, SSE stream continues unaffected |
+
+### SSR / Angular Universal
+
+SSE requires a browser `EventSource` API. In server-side rendering:
+- Guard stream creation with `isPlatformBrowser()`
+- Or inject a no-op `EventSourceFactory` on the server
+
+### CORS & credentials
+
+When your SSE endpoint requires cookie-based auth:
+1. Set `withCredentials: true` in options or global config
+2. Ensure the server sends `Access-Control-Allow-Origin` (not `*` when credentials are used)
+3. Ensure the server sends `Access-Control-Allow-Credentials: true`
+
+---
+
+## 🎮 Sample Projects
+
+| Sample | Description | Key File |
+|--------|-------------|----------|
+| [`ng-sse-client-app`](../../samples/ng-sse-client-app/) | Angular app with multiple users, notifications, reconnection, and callbacks | [`app.ts`](../../samples/ng-sse-client-app/src/app/app.ts) |
+| [`sse-sample-server-app`](../../samples/sse-sample-server-app/) | Spring Boot server emitting `message` and `notification` events | — |
+
+---
+
+## 🏗️ Development
+
 ```bash
+# Build the library
+npx nx build ng-sse-client
+
+# Run tests
 npx nx test ng-sse-client --ci --codeCoverage=false
 ```
 
----
+## 📄 License
 
-## License
-Apache-2.0
+[Apache License 2.0](../../LICENSE)
 
-## Support
-support@spectrayan.com
+## 💬 Support
+
+Questions or issues: **support@spectrayan.com**

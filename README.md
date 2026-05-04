@@ -1,297 +1,329 @@
-# Spectrayan SSE — Server‑Sent Events toolkit
+<div align="center">
 
-Spectrayan SSE is a multi-language toolkit for building Server‑Sent Events (SSE) systems:
-- Angular client library: `libs/ng-sse-client` — a typed, zone-aware SSE client for Angular apps
-- Spring WebFlux server library: `libs/sse-server` — an opinionated SSE emitter + auto-config for Spring Boot
-- Samples: `samples/*` — runnable examples for both client and server
+# ⚡ Spectrayan SSE
 
-This repository uses Nx for the JavaScript workspace and Maven for Java modules.
+**A production-ready Server-Sent Events toolkit for Spring Boot & Angular**
 
-## Contents
-- Features
-- Quickstart
-- Local build & test (Makefile)
-- Libraries
-- Samples
-- Releasing (maintainers)
-- Contributing & support
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Java](https://img.shields.io/badge/Java-21+-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0-6DB33F?logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![Angular](https://img.shields.io/badge/Angular-17+-DD0031?logo=angular&logoColor=white)](https://angular.dev)
 
-## Features
-- Angular client
-  - Strongly-typed streams with `parse` hook
-  - Automatic reconnection with backoff + jitter
-  - Support for named events and `lastEventId` propagation
-  - Runs outside Angular zone for performance and re-enters on emissions
-- Spring WebFlux server
-  - Simple `SseEmitter` service to emit payloads to topics (and broadcast)
-  - Heartbeat events to keep connections alive
-  - Auto-configured controller exposing `/{topic}` stream endpoints
-  - Configurable headers and MDC propagation
+Build real-time, event-driven applications with first-class SSE support on both server and client.
+Zero boilerplate. Production-grade. Horizontally scalable.
 
-## Quickstart
-Prerequisites:
-- Node.js 20+, npm
-- Java 21, Maven 3.9+
-- Git
-- On Windows, use Git Bash or WSL to run `make`
+[Server Docs](libs/sse-server/README.md) · [Client Docs](libs/ng-sse-client/README.md) · [Redis Bridge](libs/sse-server-bridge-redis/README.md) · [Cloud Stream Bridge](libs/sse-server-bridge-cloud-stream/README.md) · [Samples](samples/)
 
-Install dependencies:
+</div>
+
+---
+
+## 🏗️ What's in the box?
+
+| Package | Description | Language |
+|---------|-------------|----------|
+| [`sse-server`](libs/sse-server/) | Reactive SSE emitter with auto-configuration, topic management, heartbeat, CORS, metrics & more | Java / Spring Boot |
+| [`sse-server-bridge-redis`](libs/sse-server-bridge-redis/) | Multi-pod event fan-out via Redis Pub/Sub — just add the dependency, zero config | Java / Spring Data Redis |
+| [`sse-server-bridge-cloud-stream`](libs/sse-server-bridge-cloud-stream/) | Multi-pod event fan-out via Kafka, RabbitMQ, Google Pub/Sub, or any Spring Cloud Stream binder | Java / Spring Cloud |
+| [`ng-sse-client`](libs/ng-sse-client/) | Typed, zone-aware SSE client with auto-reconnect, backoff & jitter | TypeScript / Angular |
+| [`sse-sample-server-app`](samples/sse-sample-server-app/) | Runnable Spring Boot sample emitting periodic events | Java |
+| [`ng-sse-client-app`](samples/ng-sse-client-app/) | Angular sample app consuming an SSE stream | TypeScript |
+
+---
+
+## ✨ Key Features
+
+### 🖥️ Spring WebFlux Server (`sse-server`)
+
+- **Zero-config SSE endpoints** — auto-configured functional router at `GET /sse/{topic}`
+- **Topic-based pub/sub** — emit to specific topics or broadcast to all
+- **Built-in heartbeat** — keeps connections alive through proxies and load balancers
+- **Session tracking** — lifecycle hooks for connect/disconnect events
+- **Flexible serialization** — pluggable `EventSerializer` for custom payload encoding
+- **MDC propagation** — bridge Reactor context to MDC for structured logging
+- **CORS support** — auto-configured, scoped to SSE endpoints
+- **Micrometer metrics** — emit/subscribe/error counters with optional per-topic labels
+- **RFC 7807 errors** — structured `application/problem+json` error responses
+- **Configurable backpressure** — choose MULTICAST or REPLAY sinks with tunable buffer sizes
+
+### 🌐 Multi-Pod Scaling — *v2.0.0+*
+
+- **Redis bridge** — add one dependency for instant multi-pod support via Redis Pub/Sub
+- **Cloud Stream bridge** — use Kafka, RabbitMQ, Google Pub/Sub, Pulsar, or Azure Event Hubs
+- **Zero custom code** — auto-configured bridges, just add a dependency
+- **Self-deduplication** — instance-aware filtering prevents echo loops
+- **Two options** — lightweight Redis or full Spring Cloud Stream binder ecosystem
+
+### 📱 Angular Client (`ng-sse-client`)
+
+- **Strongly-typed streams** — generic `parse` hook for compile-time safety
+- **Smart reconnection** — exponential backoff with jitter, configurable limits
+- **Zone-optimized** — runs outside Angular zone, re-enters on emissions for performance
+- **Named events** — subscribe to specific SSE event types
+- **Last-Event-ID** — automatic propagation for resumable streams
+
+---
+
+## 🚀 Quick Start
+
+### Server (Spring Boot)
+
+**1. Add the dependency**
+```xml
+<dependency>
+  <groupId>com.spectrayan.sse</groupId>
+  <artifactId>sse-server</artifactId>
+  <version>2.0.0</version>
+</dependency>
 ```
-make setup
+
+**2. Emit events from your service**
+```java
+@Service
+@RequiredArgsConstructor
+public class NotificationService {
+    private final SseEmitter emitter;
+
+    public void notifyUser(String userId, Notification notification) {
+        emitter.emit(userId, "notification", notification);
+    }
+
+    public void broadcastAlert(Alert alert) {
+        emitter.emit(alert);  // sends to all connected topics
+    }
+}
 ```
 
-Run the CI-equivalent build locally (Angular build/test + Maven verify):
+**3. Clients connect to the auto-configured endpoint**
 ```
-make ci
+GET http://localhost:8080/sse/my-topic
+Accept: text/event-stream
 ```
 
-## Local build & test (Makefile)
-The Makefile mirrors the GitHub Actions workflow (`.github/workflows/libs-release.yml`). Common targets:
-- `make setup` — npm ci
-- `make build-ng` — build Angular library (`ng-sse-client`)
-- `make test-ng` — unit tests for Angular library
-- `make verify-mvn` — Maven verify for `libs/sse-server`
-- `make build-all` — build Angular + Maven verify
-- `make test-all` — test Angular + Maven verify
-- `make clean` — clean JS and Java build artifacts
-- Guarded release tasks (use with care): `make publish-npm`, `make publish-maven`
+That's it — no controllers, no routers, no configuration needed. The library auto-configures everything.
 
-## Libraries
-- Angular: see `libs/ng-sse-client/README.md` for installation, usage and API
-- Spring WebFlux: see `libs/sse-server/README.md` for features and how to use in a Spring Boot app
+### Client (Angular)
 
-## Samples
-- `samples/ng-sse-client-app`: Angular app demonstrating consumption of an SSE endpoint
-- `samples/sse-sample-server-app`: Spring Boot app emitting periodic events via `SseEmitter`
-Each sample includes its own README with run instructions.
+```bash
+npm install @spectrayan/ng-sse-client
+```
 
-## Releasing (maintainers)
+```typescript
+import { SseClient } from '@spectrayan/ng-sse-client';
+
+@Component({ /* ... */ })
+export class DashboardComponent {
+  private sse = inject(SseClient);
+  
+  notifications$ = this.sse.stream<Notification>('/sse/notifications', {
+    parse: (raw) => JSON.parse(raw),
+    reconnect: true,
+  });
+}
+```
+
+---
+
+## 🔄 Multi-Pod Deployment
+
+> SSE is inherently stateful — connections are held in-memory on one server. In multi-pod deployments, events emitted on Pod A won't reach clients on Pod B.
+
+**Choose your bridge — both require zero custom code:**
+
+### Option 1: Redis (simplest)
+
+```xml
+<!-- One dependency — that's it -->
+<dependency>
+  <groupId>com.spectrayan.sse</groupId>
+  <artifactId>sse-server-bridge-redis</artifactId>
+  <version>2.0.0</version>
+</dependency>
+```
+
+```yaml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+```
+
+📖 [Full Redis bridge guide →](libs/sse-server-bridge-redis/README.md)
+
+### Option 2: Spring Cloud Stream (Kafka, RabbitMQ, etc.)
+
+```xml
+<dependency>
+  <groupId>com.spectrayan.sse</groupId>
+  <artifactId>sse-server-bridge-cloud-stream</artifactId>
+  <version>2.0.0</version>
+</dependency>
+<dependency>
+  <groupId>org.springframework.cloud</groupId>
+  <artifactId>spring-cloud-stream-binder-kafka</artifactId> <!-- or -rabbit, etc. -->
+</dependency>
+```
+
+```yaml
+spring:
+  cloud:
+    function:
+      definition: sseBridgeConsumer
+    stream:
+      bindings:
+        sseBridgeConsumer-in-0:
+          destination: sse-broadcast
+          group: ${spring.application.name}
+```
+
+📖 [Full Cloud Stream bridge guide →](libs/sse-server-bridge-cloud-stream/README.md)
+
+### Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│          Redis / Kafka / RabbitMQ / Pub/Sub                      │
+└────────────┬────────────────────────────────┬───────────────────┘
+             │                                │
+      ┌──────▼──────┐                  ┌──────▼──────┐
+      │   Pod A      │                  │   Pod B      │
+      │ emit("t","d")│─── publish ────▶ │ subscribe    │
+      │ SSE clients ◄──── receive ◄────│ SSE clients  │
+      └──────────────┘                  └──────────────┘
+```
+
+---
+
+## 🏢 Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                        Your Application                          │
+│                                                                  │
+│  ┌─────────────┐    ┌───────────────┐    ┌───────────────────┐  │
+│  │ SseEmitter   │───▶│ EmissionService│───▶│ SseBroadcastBridge│  │
+│  │ (emit/      │    │ (local sink   │    │ (fan-out to other │  │
+│  │  broadcast) │    │  + bridge)    │    │  instances)       │  │
+│  └─────────────┘    └───────────────┘    └───────────────────┘  │
+│         │                   │                       │            │
+│         ▼                   ▼                       ▼            │
+│  ┌─────────────┐    ┌───────────────┐    ┌───────────────────┐  │
+│  │ TopicManager │    │ StreamComposer │    │ NoOpBroadcastBridge│  │
+│  │ (per-topic  │    │ (heartbeat +  │    │  or               │  │
+│  │  Reactor    │    │  connected +  │    │ CloudStreamBridge  │  │
+│  │  sinks)     │    │  error mapping)│    │ (Kafka/RMQ/etc.)  │  │
+│  └─────────────┘    └───────────────┘    └───────────────────┘  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🛠️ Local Development
+
+**Prerequisites:** Node.js 20+, Java 21, Maven 3.9+, Git
+
+```bash
+# Clone and setup
+git clone https://github.com/spectrayan/server-sent-events.git
+cd server-sent-events
+make setup        # npm ci
+
+# Build & test everything
+make ci           # Angular build/test + Maven verify
+
+# Or individually
+make build-ng     # Angular library only
+make verify-mvn   # Java libraries only
+make clean        # Clean all build artifacts
+```
+
+---
+
+## 📦 Libraries
+
+| Library | README | Install |
+|---------|--------|---------|
+| **sse-server** | [📖 Docs](libs/sse-server/README.md) | Maven Central |
+| **sse-server-bridge-cloud-stream** | [📖 Docs](libs/sse-server-bridge-cloud-stream/README.md) | Maven Central |
+| **ng-sse-client** | [📖 Docs](libs/ng-sse-client/README.md) | npm |
+
+## 🎮 Samples
+
+| Sample | Description | Run |
+|--------|-------------|-----|
+| [`sse-sample-server-app`](samples/sse-sample-server-app/) | Spring Boot app emitting periodic events | `mvn spring-boot:run` |
+| [`ng-sse-client-app`](samples/ng-sse-client-app/) | Angular app consuming SSE stream | `ng serve` |
+
+---
+
+<details>
+<summary><strong>📋 Releasing (Maintainers)</strong></summary>
 
 ### Versioning Strategy
 
-We follow a Spring-inspired versioning lifecycle for the Java libraries (`libs/sse-server`):
+We follow a Spring-inspired versioning lifecycle for the Java libraries:
 
-1. **SNAPSHOT** (`1.0.0-SNAPSHOT`)  
-   - Active development version  
-   - Published to [OSSRH Snapshots](https://s01.oss.sonatype.org/content/repositories/snapshots/)  
-   - Can be overwritten multiple times  
-   - Use profile: `-P snapshot`
+| Stage | Example | Target | Profile |
+|-------|---------|--------|---------|
+| **SNAPSHOT** | `2.1.0-SNAPSHOT` | OSSRH Snapshots | `-P snapshot` |
+| **Milestone** | `2.1.0-M1` | Maven Central | `-P milestone` |
+| **Release Candidate** | `2.1.0-RC1` | Maven Central | `-P rc` |
+| **GA / Release** | `2.1.0` | Maven Central | `-P release` |
 
-2. **Milestones** (`1.0.0-M1`, `1.0.0-M2`, ...)  
-   - Early preview releases  
-   - Immutable once published  
-   - Not production-ready  
-   - Published to Maven Central via Central Publishing
+Angular packages follow standard npm semver and publish via Git tags.
 
-3. **Release Candidates** (`1.0.0-RC1`, `1.0.0-RC2`, ...)  
-   - Near-final, feature-complete  
-   - Only critical fixes expected  
-   - Published to Maven Central via Central Publishing
+### Prerequisites
 
-4. **GA/Release** (`1.0.0`)  
-   - Production-ready, stable release  
-   - Published to Maven Central via Central Publishing  
-   - Use profile: `-P release`
+1. **GPG key** — generate with `gpg --full-generate-key` (RSA 4096-bit)
+2. **Maven `settings.xml`** — configure `central` and `ossrh-snapshots` servers
+3. **Environment variables:** `GPG_PASSPHRASE`, `CENTRAL_USERNAME`, `CENTRAL_PASSWORD`, `OSSRH_USERNAME`, `OSSRH_PASSWORD`
+4. **Clean Git state** — on `main`, no uncommitted changes
 
-Angular packages (`ng-sse-client`) follow standard npm semantic versioning and are published to npm on Git tags.
+### Maven Commands
 
----
-
-### Prerequisites for Releasing
-
-This section documents how to publish the Java library (`libs/sse-server`) to OSSRH Snapshots and Maven Central using the Maven Release Plugin + Central Publishing, and what’s required beforehand.
-
-#### 1) GPG key (required for Maven Central)
-
-Maven Central requires artifacts to be signed.
-
-- Install GnuPG (gpg) and generate a key pair (use the same name/email as your Git identity):
-  ```bash
-  gpg --full-generate-key
-  # Choose: RSA and RSA (default), 4096 bits, non-expiring (or set an expiry), add passphrase
-  ```
-  List your secret key ID (last 16 hex chars):
-  ```bash
-  gpg --list-secret-keys --keyid-format=long
-  # Example: sec   rsa4096/ABCDEF1234567890 2025-01-01
-  ```
-- Export and back up your public key (optional but recommended):
-  ```bash
-  gpg --armor --export ABCDEF1234567890 > public.key.asc
-  ```
-
-Environment variable used by the build:
-- `GPG_PASSPHRASE` — your key’s passphrase (required when signing in headless CI and locally due to `--pinentry-mode loopback`).
-
-You may also need to configure `~/.gnupg/gpg-agent.conf` with `allow-loopback-pinentry` and restart the agent:
 ```bash
-echo 'allow-loopback-pinentry' >> ~/.gnupg/gpg-agent.conf
-gpgconf --kill gpg-agent
-```
-
-#### 2) Maven settings.xml (servers + GPG)
-
-Create/update `~/.m2/settings.xml` with the servers used by this repo:
-
-```xml
-<settings>
-  <servers>
-    <!-- Sonatype Central Publishing (token credentials) -->
-    <server>
-      <id>central</id>
-      <username>${env.CENTRAL_USERNAME}</username>
-      <password>${env.CENTRAL_PASSWORD}</password>
-    </server>
-
-    <!-- OSSRH Snapshots repository -->
-    <server>
-      <id>ossrh-snapshots</id>
-      <username>${env.OSSRH_USERNAME}</username>
-      <password>${env.OSSRH_PASSWORD}</password>
-    </server>
-  </servers>
-
-  <profiles>
-    <profile>
-      <id>gpg</id>
-      <properties>
-        <!-- Optional: if you maintain multiple keys, set signing key id explicitly -->
-        <!-- <gpg.keyname>ABCDEF1234567890</gpg.keyname> -->
-        <gpg.passphrase>${env.GPG_PASSPHRASE}</gpg.passphrase>
-      </properties>
-    </profile>
-  </profiles>
-
-  <activeProfiles>
-    <activeProfile>gpg</activeProfile>
-  </activeProfiles>
-</settings>
-```
-
-Required environment variables (export in your shell or configure in CI):
-- `GPG_PASSPHRASE`
-- `CENTRAL_USERNAME`, `CENTRAL_PASSWORD` (Sonatype Central Publishing token credentials)
-- `OSSRH_USERNAME`, `OSSRH_PASSWORD` (OSSRH account for snapshots)
-
-#### 3) Git and build hygiene
-- Ensure a clean working tree (no uncommitted changes).
-- Ensure you are on `main` and up to date with `origin/main`.
-- Java 21 and Maven 3.9+ installed.
-
----
-
-### Maven commands (Java library)
-
-The parent POM is configured with:
-- `maven-release-plugin` — to manage versioning, tagging, and performing the release
-- `central-publishing-maven-plugin` — to publish to Maven Central
-- GPG signing during `deploy` phase
-
-General rules:
-- Always pass the appropriate profile with `-P` to select the target channel.
-- Set both the release version and the next development version explicitly.
-- For local runs while testing the release process, prefer “safe” flags so your working copy and remote aren’t changed automatically (see below).
-
-#### Local release (safe defaults)
-
-When running the Maven Release Plugin locally for milestones/RCs/GA, use these flags to avoid mutating your local working copy or pushing to the remote:
-
-```
--DlocalCheckout=true \
--DupdateWorkingCopyVersions=false \
--DpushChanges=false
-```
-
-Notes:
-- You do NOT need to run a separate `deploy` command during release. The plugin is already configured with `<goals>clean deploy central-publishing:publish</goals>`, so `release:perform` will build, sign, deploy, and trigger Central Publishing.
-- In CI or when you actually want tags/commits to be created and pushed, omit the above flags so the release plugin can push changes.
-
-#### A) Publish a SNAPSHOT (OSSRH Snapshots)
-Use for ongoing development between milestones/RCs.
-```bash
+# Snapshot (can be overwritten)
 mvn -P snapshot -DskipTests=false clean deploy
-```
 
-#### B) Milestone release (e.g., 1.0.0-M1)
-```bash
-mvn -P milestone \
-    release:prepare \
-    release:perform \
-    -DreleaseVersion=1.0.0-M1 \
-    -DdevelopmentVersion=1.0.1-SNAPSHOT \
-    -DlocalCheckout=true -DupdateWorkingCopyVersions=false -DpushChanges=false
-```
-
-#### C) Release Candidate (e.g., 1.0.0-RC1)
-```bash
-mvn -P rc \
-    release:prepare \
-    release:perform \
-    -DreleaseVersion=1.0.0-RC1 \
-    -DdevelopmentVersion=1.0.1-SNAPSHOT \
-    -DlocalCheckout=true -DupdateWorkingCopyVersions=false -DpushChanges=false
-```
-
-#### D) GA / Final release (e.g., 1.0.0)
-```bash
+# Milestone / RC / GA release
 mvn -P release \
-    release:prepare \
-    release:perform \
-    -DreleaseVersion=1.0.0 \
-    -DdevelopmentVersion=1.0.1-SNAPSHOT \
+    release:prepare release:perform \
+    -DreleaseVersion=2.0.0 \
+    -DdevelopmentVersion=2.0.1-SNAPSHOT \
     -DlocalCheckout=true -DupdateWorkingCopyVersions=false -DpushChanges=false
 ```
 
-Tips:
-- Dry run without pushing tags/commits:
-  ```bash
-  mvn -DdryRun=true -P milestone release:prepare
-  ```
-- If `release:prepare` fails, roll back changes:
-  ```bash
-  mvn release:rollback
-  git reset --hard
-  git clean -fd
-  ```
+### CI Workflows
 
-After `release:perform`, Central Publishing may require a manual review/approve step depending on your account settings. Check Sonatype Central portal if the release is not visible after a few minutes.
+| Workflow | Trigger | What it does |
+|----------|---------|-------------|
+| `libs-release.yml` | Push to `main` / manual | Build + test all, auto-publish to GitHub Packages |
+| `libs-snapshot.yml` | Manual | Deploy SNAPSHOT to Maven Central |
+| `libs-milestone.yml` | Manual (with inputs) | Milestone / RC / GA release to Maven Central |
 
----
-
-### GitHub Actions workflows for releasing (Java)
-
-Two dedicated workflows complement local Maven commands:
-
-- `.github/workflows/libs-snapshot.yml`
-  - Triggers: on push to `main` and manual dispatch
-  - What it does: builds/tests `libs/sse-server` and deploys `-SNAPSHOT` versions to OSSRH Snapshots using profile `-P snapshot`
-  - Secrets used: `OSSRH_USERNAME`, `OSSRH_PASSWORD` (mapped to the `ossrh-snapshots` server in Maven settings)
-
-- `.github/workflows/libs-milestone.yml`
-  - Trigger: manual dispatch only, with inputs: `channel` (`milestone` | `rc` | `release`), `releaseVersion`, `developmentVersion`, and optional `dryRun`
-  - What it does: runs the Maven Release Plugin with the selected profile and performs Central Publishing (no separate deploy step needed thanks to `<goals>clean deploy central-publishing:publish</goals>`)
-  - Secrets used: same as existing release workflow (Central Publishing): `MAVEN_SERVER_USERNAME`, `MAVEN_SERVER_PASSWORD`, `GPG_PRIVATE_KEY`, `MAVEN_GPG_PASSPHRASE`
-
-Note: npm publishing for the Angular client remains handled by tags via the existing `libs-release.yml` workflow and is intentionally excluded from the snapshot/milestone workflows.
-
----
-
-### npm package (Angular client)
-
-Publishing the Angular library (`libs/ng-sse-client`) is orchestrated by Nx and npm when a Git tag matching the npm version is created. For a manual publish (maintainers only):
+### npm Publishing
 
 ```bash
-# Ensure you are logged in to npm with publish rights
-npm whoami
-
-# Build the library
 npm run build ng-sse-client
-
-# From the built dist directory, publish
 (cd dist/libs/ng-sse-client && npm publish --access public)
 ```
 
-## Contributing & support
-- Please read `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`
-- Security issues: see `SECURITY.md`
-- Questions, issues, or support: support@spectrayan.com
+</details>
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Please read:
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community guidelines
+- [`SECURITY.md`](SECURITY.md) — reporting security vulnerabilities
+
+## 📄 License
+
+This project is licensed under the [Apache License 2.0](LICENSE).
+
+## 💬 Support
+
+Questions, issues, or feedback: **support@spectrayan.com**
