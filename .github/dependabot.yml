@@ -1,0 +1,121 @@
+# yaml-language-server: $schema=https://json.schemastore.org/dependabot-2.0.json
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+
+version: 2
+updates:
+
+  # ─── Maven (Java server libraries) ─────────────────────────────
+  - package-ecosystem: "maven"
+    directory: "/"                       # root reactor POM
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "java"
+    commit-message:
+      prefix: "deps(maven)"
+    groups:
+      # Batch all Spring Boot / Spring Framework updates together
+      spring:
+        patterns:
+          - "org.springframework*"
+          - "org.springframework.boot*"
+          - "org.springframework.cloud*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Batch test dependency updates
+      testing:
+        patterns:
+          - "org.junit*"
+          - "org.mockito*"
+          - "io.projectreactor:reactor-test"
+          - "org.assertj*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Batch all other minor/patch updates
+      minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "org.springframework*"
+          - "org.junit*"
+          - "org.mockito*"
+          - "io.projectreactor:reactor-test"
+          - "org.assertj*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ─── npm (Angular client library) ──────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"                       # root package.json + nx workspace
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "javascript"
+    commit-message:
+      prefix: "deps(npm)"
+    groups:
+      # Batch Angular framework updates together
+      angular:
+        patterns:
+          - "@angular/*"
+          - "@angular-devkit/*"
+        update-types:
+          - "minor"
+          - "patch"
+      # Batch Nx monorepo tooling updates
+      nx:
+        patterns:
+          - "@nx/*"
+          - "nx"
+        update-types:
+          - "minor"
+          - "patch"
+      # Batch TypeScript, RxJS, and other runtime deps
+      minor-and-patch:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@angular/*"
+          - "@angular-devkit/*"
+          - "@nx/*"
+          - "nx"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # ─── GitHub Actions (CI/CD pipeline) ───────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/Chicago"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "deps(actions)"
+    groups:
+      # Batch all action version bumps into one PR
+      actions:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
