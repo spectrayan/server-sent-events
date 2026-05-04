@@ -31,7 +31,7 @@ concurrency:
 
 jobs:
   prepare_verify:
-    name: Verify Java sse-server
+    name: Verify Java SSE libraries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -45,7 +45,7 @@ jobs:
         with:
           settings-file: .mvn/settings.xml
           working-directory: '.'
-      - name: Build & test sse-server
+      - name: Build & test SSE libraries
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
           goals: '-B -U verify'

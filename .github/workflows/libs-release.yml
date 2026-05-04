@@ -51,8 +51,9 @@ jobs:
 
   # ---------- MAVEN: build & test ----------
   maven_build_test:
-    name: Java sse-server • build & test
+    name: Java SSE libraries • build & test
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v5
       - name: Setup Java
@@ -65,7 +66,7 @@ jobs:
         with:
           settings-file: .mvn/settings.xml
           working-directory: '.'
-      - name: Build & test sse-server
+      - name: Build & test SSE libraries
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
           goals: '-B -U verify'
@@ -103,7 +104,7 @@ jobs:
 
   # ---------- Publish to Maven Central (manual only) ----------
   publish_maven:
-    name: Publish sse-server to Maven Central
+    name: Publish SSE libraries to Maven Central
     needs: [maven_build_test]
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
@@ -169,7 +170,7 @@ jobs:
         run: npm publish --registry=https://npm.pkg.github.com || echo 'Version already published, skipping'
 
   publish_gpr_maven:
-    name: Publish sse-server to GitHub Packages (Maven)
+    name: Publish SSE libraries to GitHub Packages (Maven)
     needs: [maven_build_test]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

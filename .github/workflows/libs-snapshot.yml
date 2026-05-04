@@ -17,7 +17,7 @@ concurrency:
 jobs:
   # Build & test the Java library first
   maven_build_test:
-    name: Java sse-server • build & test
+    name: Java SSE libraries • build & test
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -31,7 +31,7 @@ jobs:
         with:
           settings-file: .mvn/settings.xml
           working-directory: '.'
-      - name: Build & test sse-server
+      - name: Build & test SSE libraries
         uses: spectrayan/github-workflows/.github/actions/maven-build@v1
         with:
           goals: '-B -U verify'
