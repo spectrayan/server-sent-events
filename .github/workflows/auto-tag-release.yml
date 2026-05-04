@@ -1,0 +1,166 @@
+name: Auto-Tag & Release
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'pom.xml'
+      - 'libs/ng-sse-client/package.json'
+
+permissions:
+  contents: write
+
+jobs:
+  tag-and-release:
+    name: Detect version changes & create releases
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 2  # need previous commit to detect changes
+
+      # ── Detect Maven version change ──────────────────────────────
+      - name: Get current Maven version
+        id: maven_current
+        run: |
+          VERSION=$(grep -m1 '<version>' pom.xml | sed 's/.*<version>\(.*\)<\/version>.*/\1/')
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Maven current version: $VERSION"
+
+      - name: Get previous Maven version
+        id: maven_previous
+        run: |
+          VERSION=$(git show HEAD~1:pom.xml 2>/dev/null | grep -m1 '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/' || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Maven previous version: $VERSION"
+
+      - name: Check if Maven version changed
+        id: maven_changed
+        run: |
+          if [ "${{ steps.maven_current.outputs.version }}" != "${{ steps.maven_previous.outputs.version }}" ] && \
+             [ -n "${{ steps.maven_current.outputs.version }}" ] && \
+             [ -n "${{ steps.maven_previous.outputs.version }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Maven version changed: ${{ steps.maven_previous.outputs.version }} → ${{ steps.maven_current.outputs.version }}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Maven version unchanged"
+          fi
+
+      # ── Detect npm version change ────────────────────────────────
+      - name: Get current npm version
+        id: npm_current
+        run: |
+          VERSION=$(node -p "require('./libs/ng-sse-client/package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "npm current version: $VERSION"
+
+      - name: Get previous npm version
+        id: npm_previous
+        run: |
+          VERSION=$(git show HEAD~1:libs/ng-sse-client/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "npm previous version: $VERSION"
+
+      - name: Check if npm version changed
+        id: npm_changed
+        run: |
+          if [ "${{ steps.npm_current.outputs.version }}" != "${{ steps.npm_previous.outputs.version }}" ] && \
+             [ -n "${{ steps.npm_current.outputs.version }}" ] && \
+             [ -n "${{ steps.npm_previous.outputs.version }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ npm version changed: ${{ steps.npm_previous.outputs.version }} → ${{ steps.npm_current.outputs.version }}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ npm version unchanged"
+          fi
+
+      - name: Create Maven release tag
+        if: steps.maven_changed.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.maven_current.outputs.version }}
+          PREV_VERSION: ${{ steps.maven_previous.outputs.version }}
+        run: |
+          TAG="v${VERSION}"
+
+          # Check if tag already exists (locally or on remote)
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "⏭️ Tag $TAG already exists on remote, skipping"
+            exit 0
+          fi
+
+          # Check if a GitHub Release already exists for this tag
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⏭️ Release $TAG already exists, skipping"
+            exit 0
+          fi
+
+          # Determine pre-release flag
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qiE '(SNAPSHOT|M[0-9]+|RC[0-9]+|alpha|beta)'; then
+            PRERELEASE="--prerelease"
+          fi
+
+          # Create annotated tag and push
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+          # Create GitHub Release with auto-generated notes
+          gh release create "$TAG" \
+            --title "🚀 Server Libraries $TAG" \
+            --generate-notes \
+            --notes-start-tag "v${PREV_VERSION}" \
+            $PRERELEASE
+
+          echo "✅ Created release: $TAG"
+
+      - name: Create npm release tag
+        if: steps.npm_changed.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.npm_current.outputs.version }}
+          PREV_VERSION: ${{ steps.npm_previous.outputs.version }}
+        run: |
+          TAG="ng-sse-client-v${VERSION}"
+
+          # Check if tag already exists (locally or on remote)
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "⏭️ Tag $TAG already exists on remote, skipping"
+            exit 0
+          fi
+
+          # Check if a GitHub Release already exists for this tag
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⏭️ Release $TAG already exists, skipping"
+            exit 0
+          fi
+
+          # Determine pre-release flag
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qiE '(alpha|beta|rc|next)'; then
+            PRERELEASE="--prerelease"
+          fi
+
+          # Create annotated tag and push
+          git tag -a "$TAG" -m "Release @spectrayan/ng-sse-client $TAG"
+          git push origin "$TAG"
+
+          # Create GitHub Release with auto-generated notes
+          gh release create "$TAG" \
+            --title "📱 @spectrayan/ng-sse-client $VERSION" \
+            --generate-notes \
+            --notes-start-tag "ng-sse-client-v${PREV_VERSION}" \
+            $PRERELEASE
+
+          echo "✅ Created release: $TAG"
+
+      # ── Summary ──────────────────────────────────────────────────
+      - name: Summary
+        run: |
+          echo "## 🏷️ Auto-Tag Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Package | Previous | Current | Tagged? |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---------|----------|---------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Server (Maven)** | \`${{ steps.maven_previous.outputs.version }}\` | \`${{ steps.maven_current.outputs.version }}\` | ${{ steps.maven_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **Client (npm)** | \`${{ steps.npm_previous.outputs.version }}\` | \`${{ steps.npm_current.outputs.version }}\` | ${{ steps.npm_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
