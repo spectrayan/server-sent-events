@@ -34,7 +34,7 @@ jobs:
     name: Verify Java SSE libraries
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -59,7 +59,7 @@ jobs:
     env:
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
