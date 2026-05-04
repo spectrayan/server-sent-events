@@ -19,21 +19,31 @@ Your SSE events now reach every client, regardless of which pod they're connecte
 
 SSE connections are inherently stateful — each client holds an open HTTP connection to a specific server instance. In multi-pod deployments (Kubernetes, ECS, Cloud Run, etc.), events emitted on one pod are invisible to clients connected to other pods:
 
-```
-  Client A ──── Pod 1 ◄── emit("order.created", data)   ✅ Received!
-  Client B ──── Pod 2                                    ❌ Missed!
-  Client C ──── Pod 3                                    ❌ Missed!
+```mermaid
+flowchart LR
+    A["Client A"] --- P1["Pod 1"]
+    B["Client B"] --- P2["Pod 2"]
+    C["Client C"] --- P3["Pod 3"]
+    emit["emit('order.created', data)"] --> P1
+    P1 -. "✅ Received!" .-> A
+    P2 -. "❌ Missed!" .-> B
+    P3 -. "❌ Missed!" .-> C
 ```
 
 ## ✅ The Solution
 
 This module implements the `SseBroadcastBridge` SPI from `sse-server` using Spring Cloud Stream. When an event is emitted on any pod, it's automatically published to a shared messaging channel. Every pod subscribes to that channel and injects remote events into its local SSE sinks:
 
-```
-  Client A ──── Pod 1 ◄── emit("order.created", data) ──┐
-  Client B ──── Pod 2 ◄─────────────────────────────────┤  ✅ All receive!
-  Client C ──── Pod 3 ◄─────────────────────────────────┘
-                            via Kafka / RabbitMQ / Pub/Sub
+```mermaid
+flowchart LR
+    emit["emit('order.created', data)"] --> P1["Pod 1"]
+    P1 --> Broker["Kafka / RabbitMQ / Pub/Sub"]
+    Broker --> P2["Pod 2"]
+    Broker --> P3["Pod 3"]
+    Broker --> P1
+    P1 -. "✅" .-> A["Client A"]
+    P2 -. "✅" .-> B["Client B"]
+    P3 -. "✅" .-> C["Client C"]
 ```
 
 ---
@@ -153,44 +163,23 @@ That's it. Your existing `emitter.emit()` calls now automatically fan out across
 
 ## ⚙️ How It Works
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         Pod A                                │
-│                                                              │
-│  emitter.emit("orders", "created", order)                    │
-│       │                                                      │
-│       ▼                                                      │
-│  EmissionService                                             │
-│       ├── sink.tryEmitNext(event)     → local SSE clients    │
-│       └── bridge.publish(message)                            │
-│               │                                              │
-│               ▼                                              │
-│  CloudStreamBroadcastBridge                                  │
-│       └── StreamBridge.send("sse-broadcast", message)        │
-└───────────────────────┬─────────────────────────────────────┘
-                        │
-                        ▼
-         ┌──────────────────────────────┐
-         │   Kafka / RabbitMQ / Pub/Sub  │
-         └──────────────┬───────────────┘
-                        │
-         ┌──────────────▼───────────────┐
-         │         Pod B                 │
-         │                               │
-         │  sseBridgeConsumer (Consumer)  │
-         │       │                       │
-         │       ▼                       │
-         │  bridge.handleIncoming()      │
-         │       │                       │
-         │       ├── Skip if same        │
-         │       │   instanceId (self)   │
-         │       │                       │
-         │       └── Inject into local   │
-         │           topic sink          │
-         │              │                │
-         │              ▼                │
-         │       Local SSE clients  ✅   │
-         └───────────────────────────────┘
+```mermaid
+flowchart TD
+    subgraph PodA["Pod A"]
+        Emit["emitter.emit('orders', 'created', order)"] --> ES["EmissionService"]
+        ES --> LocalSink["sink.tryEmitNext — local SSE clients"]
+        ES --> Bridge["CloudStreamBroadcastBridge"]
+        Bridge --> SB["StreamBridge.send('sse-broadcast', msg)"]
+    end
+    SB --> Broker["Kafka / RabbitMQ / Pub/Sub"]
+    Broker --> Consumer
+    subgraph PodB["Pod B"]
+        Consumer["sseBridgeConsumer"] --> Handle["bridge.handleIncoming()"]
+        Handle --> Dedup{"Same instanceId?"}
+        Dedup -- "Yes (self)" --> Skip["Skip"]
+        Dedup -- "No (remote)" --> Inject["Inject into local sink"]
+        Inject --> Clients["Local SSE clients ✅"]
+    end
 ```
 
 ### Self-Deduplication

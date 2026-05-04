@@ -1,178 +1,344 @@
-# Spectrayan SSE Server (Spring WebFlux)
+<div align="center">
 
-Reactive SSE server utilities for Spring Boot (WebFlux).
+# ⚡ Spectrayan SSE Server
 
-- Auto-configuration creates a functional router, emitter, and error handler
-- Topic-based streaming at `GET ${base-path}/{topic}` returning `text/event-stream`
-- Built-in heartbeat events keep connections alive
-- Optional Reactor Context → MDC bridge and flexible header handling
+**Reactive Server-Sent Events for Spring Boot (WebFlux)**
 
-## Installation
-Add the dependency (from Maven Central when released, or install locally first):
+[![Maven Central](https://img.shields.io/badge/Maven_Central-2.0.0-blue?logo=apachemaven)](https://central.sonatype.com/artifact/com.spectrayan.sse/sse-server)
+[![Java](https://img.shields.io/badge/Java-21+-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org)
+[![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0-6DB33F?logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
+Drop-in SSE infrastructure for Spring Boot. Auto-configured endpoints, topic management,
+heartbeat, session tracking, metrics, and multi-pod scaling — all from a single dependency.
+
+</div>
+
+---
+
+## 📦 Installation
+
 ```xml
 <dependency>
   <groupId>com.spectrayan.sse</groupId>
   <artifactId>sse-server</artifactId>
-  <version>0.0.1</version>
+  <version>2.0.0</version>
 </dependency>
 ```
-For local development against this repo:
-```
-mvn -pl libs/sse-server install
-```
 
-## Quick start
-Spring Boot auto-config registers a functional router that exposes SSE at `${spectrayan.sse.server.base-path}/{topic}` (default `/sse/{topic}`).
+> **Local development:** `mvn -pl libs/sse-server install` from the repo root.
 
-Example subscription from a browser:
-```js
-const es = new EventSource('http://localhost:8080/sse/notifications');
-es.onmessage = (e) => console.log('message', e.data);
-es.addEventListener('notification', (e) => console.log('named', e.data));
-```
+---
 
-Emit events from application code using `SseEmitter`:
+## 🚀 Quick Start
+
+### 1. Add the dependency (above) — that's the only setup needed
+
+Spring Boot auto-configuration registers:
+- A functional router at `GET /sse/{topic}` (configurable)
+- A `SseEmitter` bean for pushing events
+- Heartbeat, error handling, CORS, and metrics (if Micrometer is on classpath)
+
+### 2. Emit events from your service
 
 ```java
-import com.spectrayan.sse.server.emitter.AbstractSseEmitter;
-import org.springframework.stereotype.Service;
-import lombok.RequiredArgsConstructor;
-
 @Service
 @RequiredArgsConstructor
 public class OrderService {
-    private final AbstractSseEmitter emitter;
+    private final SseEmitter emitter;
 
     public void orderCreated(Order order) {
-        // Broadcast a string message
-        emitter.emit("Order created: " + order.id());
-
-        // Emit a named event with a complex object
+        // Emit to a specific topic with a named event
         emitter.emit("orders", "orderCreated", order);
+
+        // Broadcast to ALL connected topics
+        emitter.emit(order);
     }
 }
 ```
 
-## Endpoints
-- `GET ${base-path}/{topic}` — Subscribe to a topic. Produces `text/event-stream`.
-  - Emits an initial `event: connected` frame
-  - Periodic `event: heartbeat` frames with data `::heartbeat::`
+### 3. Clients subscribe via the auto-configured endpoint
 
-## Configuration properties
-Prefix: `spectrayan.sse.server.*`
+```javascript
+const es = new EventSource('http://localhost:8080/sse/orders');
+
+// Default unnamed events
+es.onmessage = (e) => console.log('Data:', JSON.parse(e.data));
+
+// Named events
+es.addEventListener('orderCreated', (e) => {
+  console.log('New order:', JSON.parse(e.data));
+});
+```
+
+---
+
+## ✨ Features at a Glance
+
+| Feature | Description |
+|---------|-------------|
+| **Auto-configured endpoints** | Functional router at `GET ${base-path}/{topic}` — no controllers needed |
+| **Topic-based pub/sub** | Emit to specific topics or broadcast to all active topics |
+| **Heartbeat events** | Periodic `event: heartbeat` frames keep connections alive through proxies |
+| **Connected event** | Initial `event: connected` frame confirms the stream is established |
+| **Retry directive** | Sends SSE `retry:` field for client-side reconnection timing |
+| **Session tracking** | Lifecycle hooks for session join/leave with pluggable `SseSessionHook` |
+| **Flexible serialization** | Pluggable `EventSerializer` for custom payload encoding |
+| **MDC propagation** | Bridge Reactor Context → SLF4J MDC for structured logging in SSE handlers |
+| **CORS support** | Auto-configured `CorsWebFilter` scoped to SSE endpoints |
+| **Micrometer metrics** | Emit/subscribe/error counters with optional per-topic labels |
+| **RFC 7807 errors** | `SseExceptionHandler` returns `application/problem+json` responses |
+| **Backpressure control** | Choose `MULTICAST` (default) or `REPLAY` sinks with tunable buffer sizes |
+| **Custom sink factories** | Implement `SseEmitterCustomizer` for advanced sink configuration |
+| **Codec customization** | `SseCodecCustomizer` bean to tweak `ServerCodecConfigurer` |
+| **Multi-pod scaling** | Pluggable `SseBroadcastBridge` SPI (v2.0.0+) |
+
+---
+
+## 🔧 Configuration
+
+All properties live under `spectrayan.sse.server.*`:
 
 ```yaml
 spectrayan:
   sse:
     server:
-      enabled: true                # Master switch (default true)
-      mdc-bridge-enabled: true     # Copy Reactor Context to MDC where marked
-      mdc-context-key: sseMdc      # Context key that enables MDC bridging
+      enabled: true                  # Master switch (default: true)
+      base-path: /sse                # SSE endpoint base path
 
-      base-path: /sse              # Base path for the functional router
-      errors:                      # ProblemDetails handler configuration
-        enabled: true
-        scope: GLOBAL              # or SSE to limit to <base-path>
-
+      # --- Stream behavior ---
       stream:
         connected-event-enabled: true
         connected-event-name: connected
         connected-event-data: connected
         retry-enabled: true
-        retry: 3s
+        retry: 3s                    # SSE retry directive
         heartbeat-enabled: true
         heartbeat-interval: 15s
         heartbeat-event-name: heartbeat
         heartbeat-data: "::heartbeat::"
-        map-errors-to-sse: true
+        map-errors-to-sse: true      # Send errors as SSE events
 
+      # --- Topic validation ---
       topics:
-        pattern: "^[A-Za-z0-9._-]+$"
-        max-subscribers: 0
+        pattern: "^[A-Za-z0-9._-]+$" # Regex for valid topic names
+        max-subscribers: 0            # 0 = unlimited
 
+      # --- Emitter/sink settings ---
       emitter:
-        sink-type: MULTICAST  # or REPLAY
-        replay-size: 0        # used when sink-type=REPLAY
+        sink-type: MULTICAST          # MULTICAST or REPLAY
+        replay-size: 0                # Buffer size when sink-type=REPLAY
+        emit-retries: 16              # Retry on FAIL_NON_SERIALIZED
 
-      webflux:
-        filter-order: 0
-        compression: false    # enable HTTP compression for SSE responses (opt-in)
+      # --- MDC bridge ---
+      mdc-bridge-enabled: true
+      mdc-context-key: sseMdc
 
+      # --- CORS ---
       cors:
         enabled: false
         allowed-origins: ["*"]
         allowed-methods: ["GET"]
         allowed-headers: ["*"]
-        exposed-headers: []
         allow-credentials: false
         max-age: 1h
-        # path-pattern: 
 
+      # --- HTTP compression ---
+      webflux:
+        filter-order: 0
+        compression: false
+
+      # --- Metrics ---
+      metrics:
+        enabled: true
+        per-topic: true               # Per-topic labels (disable for high cardinality)
+
+      # --- Error handling ---
+      errors:
+        enabled: true
+        scope: GLOBAL                 # GLOBAL or SSE
+
+      # --- Multi-pod bridge (v2.0.0+) ---
+      bridge:
+        enabled: true
+        channel-name: sse-broadcast
+        # instance-id:                # Auto-generated UUID if omitted
+
+      # --- Request header mapping ---
       headers:
-        # Copy incoming request headers into MDC and optionally echo to response
         - key: X-Request-Id
           mdc-key: requestId
           include-in-problem: true
           copy-to-response: true
           response-header-name: X-Request-Id
-        # Static response header
         - key: Cache-Control
-          value: no-cache
+          value: no-cache              # Static response header
 ```
 
-### CORS
-- When `cors.enabled=true`, the library registers a `CorsWebFilter` that applies only to the SSE base path (defaults to `<base-path>/**`).
-- You can override by defining your own `CorsWebFilter` or global configuration; the library backs off if one already exists.
+---
 
-### HTTP compression (Reactor Netty)
-- When `webflux.compression=true`, the auto-config enables server-side compression at the Netty HTTP server level.
-- Note: Compression on long-lived SSE connections can increase latency and CPU usage. Keep it disabled unless you have a specific need and validate with clients and intermediaries.
+## 🔌 Extensibility
 
-### Codec customization
-- Implement `SseCodecCustomizer` to tweak the shared `ServerCodecConfigurer` without replacing WebFlux config.
+### Custom session hooks
+
 ```java
-@Bean
-SseCodecCustomizer registerKotlinModule(ObjectMapper mapper) {
-  return (cfg) -> {
-    // example: ensure an additional encoder/decoder or tweak Jackson
-    // var codecs = cfg.customCodecs();
-    // codecs.register(new MyCustomEncoder());
-  };
+@Component
+@Order(1)
+public class AuditSessionHook implements SseSessionHook {
+    @Override
+    public void onJoin(SseSession session) {
+        log.info("Client connected: session={} topic={}", session.id(), session.topic());
+    }
+    @Override
+    public void onLeave(SseSession session, SignalType signal) {
+        log.info("Client disconnected: session={} reason={}", session.id(), signal);
+    }
 }
 ```
 
-Behavior highlights:
-- Only when `mdc-bridge-enabled=true` and the Reactor Context contains the marker key (default `sseMdc`) will values be copied into MDC.
-- `headers[].value` always adds a static response header.
-- `headers[].copy-to-response` echoes the incoming request header on the SSE response.
-- `headers[].include-in-problem` includes the header/value in RFC7807 Problem responses emitted by the library.
+### Custom event serializer
 
-## Error handling
-The library provides `SseExceptionHandler` which serializes errors as `application/problem+json` (RFC7807). You can:
-- Enable/disable via `spectrayan.sse.server.errors.enabled`
-- Limit handling to SSE routes by setting `spectrayan.sse.server.errors.scope: SSE` (matches `<base-path>/**`)
-- Customize mappings via `SseWebFluxConfigurer#configureExceptionHandling`
-Selected request headers (from MDC) can be included in `problem.properties.headers` according to `headers[]` config.
-
-## Extensibility (`SseWebFluxConfigurer`)
-Applications may implement `SseWebFluxConfigurer` to tweak codecs, CORS, headers, and exception mappings without replacing beans. See the sample app for a working example.
-
-## Migration notes
-- Controller mode removed: the library is router-only. Replace any `controller.*` properties with the new top-level `base-path`.
-- `GlobalExceptionHandler` was replaced by `SseExceptionHandler` with configurable scope and mappings.
-
-## Sample application
-See `samples/sse-sample-server-app` for a Spring Boot app that emits demo events on a schedule.
-
-## Build & test
+```java
+@Bean
+EventSerializer customSerializer() {
+    return (payload) -> objectMapper.writeValueAsString(payload);
+}
 ```
+
+### Custom codec configuration
+
+```java
+@Bean
+SseCodecCustomizer registerProtobuf() {
+    return (codecConfigurer) -> {
+        codecConfigurer.customCodecs().register(new ProtobufEncoder());
+    };
+}
+```
+
+### Custom sink creation
+
+```java
+@Bean
+SseEmitterCustomizer replayWithHistory() {
+    return (topic) -> Sinks.many().replay().limit(100);
+}
+```
+
+---
+
+## 🌐 Multi-Pod / Horizontal Scaling
+
+> **Problem:** SSE connections are held in-memory on a single JVM. Events emitted on Pod A are invisible to clients connected to Pod B.
+
+> **Solution:** The broadcast bridge SPI enables cross-instance event delivery through any messaging system. Choose a bridge module — zero custom code required.
+
+### Option 1: Redis (simplest)
+
+```xml
+<!-- One dependency — that's it -->
+<dependency>
+  <groupId>com.spectrayan.sse</groupId>
+  <artifactId>sse-server-bridge-redis</artifactId>
+  <version>2.0.0</version>
+</dependency>
+```
+
+```yaml
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+```
+
+📖 [Full Redis bridge guide →](../sse-server-bridge-redis/README.md)
+
+### Option 2: Spring Cloud Stream (Kafka, RabbitMQ, etc.)
+
+```xml
+<dependency>
+  <groupId>com.spectrayan.sse</groupId>
+  <artifactId>sse-server-bridge-cloud-stream</artifactId>
+  <version>2.0.0</version>
+</dependency>
+<dependency>
+  <groupId>org.springframework.cloud</groupId>
+  <artifactId>spring-cloud-stream-binder-kafka</artifactId>
+</dependency>
+```
+
+```yaml
+spring:
+  cloud:
+    function:
+      definition: sseBridgeConsumer
+    stream:
+      bindings:
+        sseBridgeConsumer-in-0:
+          destination: sse-broadcast
+          group: ${spring.application.name}
+```
+
+| Broker | Just swap the binder dependency |
+|--------|------|
+| Apache Kafka | `spring-cloud-stream-binder-kafka` |
+| RabbitMQ | `spring-cloud-stream-binder-rabbit` |
+| Google Cloud Pub/Sub | `spring-cloud-gcp-pubsub-stream-binder` |
+| Apache Pulsar | `spring-cloud-stream-binder-pulsar` |
+| Azure Event Hubs | `spring-cloud-azure-stream-binder-eventhubs` |
+
+📖 [Full Cloud Stream bridge guide →](../sse-server-bridge-cloud-stream/README.md)
+
+---
+
+## 📡 Endpoint Reference
+
+### `GET ${base-path}/{topic}`
+
+Subscribes to a topic and returns a `text/event-stream`.
+
+**Response frames:**
+| Frame | When | Data |
+|-------|------|------|
+| `event: connected` | Immediately on connect | `connected` |
+| `retry: 3000` | After connected (if enabled) | — |
+| `event: heartbeat` | Every 15s (configurable) | `::heartbeat::` |
+| *(data frames)* | When `emitter.emit()` is called | Your payload |
+
+---
+
+## 🔄 Migration Notes
+
+### v2.0.0 (current)
+
+- **New:** Multi-pod broadcast bridge SPI — `SseBroadcastBridge` interface + `NoOpBroadcastBridge` default
+- **New:** `sse-server-bridge-redis` module — Redis Pub/Sub bridge (simplest option)
+- **New:** `sse-server-bridge-cloud-stream` module — Kafka, RabbitMQ, Pulsar, etc.
+- **New:** `spectrayan.sse.server.bridge.*` configuration properties
+- **Breaking:** `AbstractSseEmitter` constructor now accepts `SseBroadcastBridge` parameter. If you subclass `AbstractSseEmitter` directly, add the new parameter. Standard usage via `SseEmitter` bean is unaffected.
+
+### v1.x
+
+- Controller mode removed — library is router-only (replace `controller.*` properties with `base-path`)
+- `GlobalExceptionHandler` replaced by `SseExceptionHandler` with configurable scope
+
+---
+
+## 🏗️ Build & Test
+
+```bash
 # From repo root
+mvn -pl libs/sse-server verify
+
+# Or via Make
 make verify-mvn
 ```
 
-## License
-Apache-2.0
+## 📄 License
 
-## Support
-Questions or issues: support@spectrayan.com
+[Apache License 2.0](../../LICENSE)
 
+## 💬 Support
+
+Questions or issues: **support@spectrayan.com**

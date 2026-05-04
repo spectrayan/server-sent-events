@@ -24,11 +24,9 @@ When your app runs on multiple pods behind a load balancer, SSE clients connect 
 
 This module auto-configures a Redis Pub/Sub bridge that synchronizes events across all pods:
 
-```
-  Pod A (emits event)                Pod B (SSE client connected)
-       │                                       ▲
-       └──► Redis Pub/Sub channel ────────────┘
-            "sse-broadcast"
+```mermaid
+flowchart LR
+    A["Pod A (emits event)"] -- publish --> R["Redis Pub/Sub\nsse-broadcast"] -- deliver --> B["Pod B (SSE client connected)"]
 ```
 
 **Every pod publishes to Redis. Every pod subscribes. Self-originated messages are filtered out.**
@@ -96,21 +94,23 @@ spectrayan:
 
 ## 🏗️ How It Works
 
-```
-┌─────────────────────────────────────────────────────┐
-│                    Redis Server                      │
-│              Channel: "sse-broadcast"                │
-│                                                      │
-│  subscribe ◄──────────────────────────── subscribe   │
-│      │                                      │        │
-└──────┼──────────────────────────────────────┼────────┘
-       │                                      │
-   ┌───▼───┐  publish ─────────────────► ┌───▼───┐
-   │ Pod A  │                             │ Pod B  │
-   │        │ ◄───────────────── publish  │        │
-   │ SSE    │                             │ SSE    │
-   │Clients │                             │Clients │
-   └────────┘                             └────────┘
+```mermaid
+flowchart TD
+    subgraph Redis["Redis Server — Channel: sse-broadcast"]
+        CH["sse-broadcast"]
+    end
+    subgraph PodA["Pod A"]
+        A_SSE["SSE Clients"]
+    end
+    subgraph PodB["Pod B"]
+        B_SSE["SSE Clients"]
+    end
+    PodA -- subscribe --> CH
+    PodB -- subscribe --> CH
+    PodA -- publish --> CH
+    PodB -- publish --> CH
+    CH -- deliver --> PodA
+    CH -- deliver --> PodB
 ```
 
 1. **Publish** — When a pod emits an SSE event locally, it also serializes the event to JSON and publishes to the Redis channel
