@@ -1,54 +1,120 @@
-# SSE Sample Server App (Spring Boot)
+<div align="center">
 
-A minimal Spring Boot WebFlux app demonstrating how to emit Server‑Sent Events (SSE) using the Spectrayan SSE Server library.
+# 🖥️ SSE Sample Server App
 
-## Prerequisites
+**Spring Boot WebFlux sample using the Spectrayan SSE Server library**
+
+</div>
+
+---
+
+## 📋 What This Demonstrates
+
+This is a minimal Spring Boot application that shows how to:
+- ✅ Auto-configure SSE endpoints via `sse-server`
+- ✅ Emit periodic events on a schedule
+- ✅ Send named events (`notification`) with complex payloads
+- ✅ Broadcast string messages to all connected topics
+- ✅ Keep connections alive with heartbeat frames
+
+---
+
+## 🏁 Prerequisites
+
 - Java 21
 - Maven 3.9+
 
-This sample depends on the `libs/sse-server` module from this repository. Install it to your local Maven cache before running:
-```
+Install the `sse-server` library to your local Maven cache:
+```bash
 # From repo root
 mvn -pl libs/sse-server install
 ```
 
-## Run the app
-```
+---
+
+## 🚀 Run
+
+```bash
 # From repo root
 mvn -pl samples/sse-sample-server-app spring-boot:run
 ```
-The app starts on `http://localhost:8080` by default.
 
-## Subscribe to SSE
-The library’s auto-configured controller exposes an endpoint per topic at `GET /{topic}`.
+The app starts on **http://localhost:8080** by default.
 
-Try subscribing in a browser console:
-```js
+---
+
+## 📡 Try It Out
+
+### Subscribe via browser console
+
+```javascript
 const es = new EventSource('http://localhost:8080/notifications');
-es.onmessage = (e) => console.log('message', e.data);
-es.addEventListener('notification', (e) => console.log('named', e.data));
+
+// Default unnamed events
+es.onmessage = (e) => console.log('message:', e.data);
+
+// Named events
+es.addEventListener('notification', (e) => console.log('notification:', JSON.parse(e.data)));
 ```
 
-## What gets emitted
-See `NotificationScheduler` in `src/main/java/com/spectrayan/sse/sample/scheduler/NotificationScheduler.java`.
-- Every 15 seconds a complex `notification` object is emitted to all connected subscribers
-- Heartbeat frames are sent periodically by the library to keep connections alive
+### Subscribe via curl
 
-You can also inject `SseEmitter` into your own services/controllers and call:
+```bash
+curl -N http://localhost:8080/notifications
+```
+
+---
+
+## ⚡ What Gets Emitted
+
+See `NotificationScheduler` in `src/main/java/.../scheduler/NotificationScheduler.java`:
+
+| Interval | Event | Description |
+|----------|-------|-------------|
+| Every 15s | `notification` | Complex object with id, timestamp, and message |
+| Configurable | `heartbeat` | Built-in keep-alive frame from the library |
+
+### Emit from your own code
+
 ```java
-emitter.emit("hello");                 // default message event (broadcast)
-emitter.emit("notifications", "notification", new Notification(...)); // named event to topic
+@Service
+@RequiredArgsConstructor
+public class MyService {
+    private final SseEmitter emitter;
+
+    public void example() {
+        // Broadcast a string message to all topics
+        emitter.emit("hello");
+
+        // Named event to a specific topic
+        emitter.emit("notifications", "notification", new Notification(...));
+    }
+}
 ```
 
-## Configuration
-Library properties (prefix `spectrayan.sse.server`) can be set in `application.yml` to control headers and MDC. See `libs/sse-server/README.md` for details.
+---
 
-## Troubleshooting
-- If you get `ClassNotFound` for `sse-server`, ensure you ran `mvn -pl libs/sse-server install`
-- If port 8080 is in use, set `server.port` in `application.properties`
+## ⚙️ Configuration
 
-## License
-Apache-2.0
+All library properties are under `spectrayan.sse.server.*` in `application.yml`.
+See the [sse-server docs](../../libs/sse-server/README.md) for the full reference.
 
-## Support
-Questions or issues: support@spectrayan.com
+---
+
+## 🔧 Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| `ClassNotFound` for sse-server | Run `mvn -pl libs/sse-server install` first |
+| Port 8080 in use | Set `server.port=8081` in `application.properties` |
+| No events received | Ensure you're subscribed to the correct topic name |
+
+---
+
+## 📄 License
+
+[Apache License 2.0](../../LICENSE)
+
+## 💬 Support
+
+Questions or issues: **support@spectrayan.com**

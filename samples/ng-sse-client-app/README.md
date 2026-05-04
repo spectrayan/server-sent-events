@@ -1,55 +1,122 @@
-# Angular SSE Client Sample App
+<div align="center">
 
-A minimal Angular application demonstrating how to consume Server‑Sent Events (SSE) using `@spectrayan/ng-sse-client`.
+# 📱 Angular SSE Client Sample App
 
-## Prerequisites
+**Live demo of `@spectrayan/ng-sse-client` consuming Server-Sent Events**
+
+</div>
+
+---
+
+## 📋 What This Demonstrates
+
+This is a minimal Angular application that shows how to:
+- ✅ Connect to an SSE endpoint using `SseClient`
+- ✅ Listen for both default `message` and named `notification` events
+- ✅ Parse complex JSON payloads with type safety
+- ✅ Auto-reconnect on connection drops
+- ✅ Switch between multiple user streams in the UI
+- ✅ Trigger server-side callbacks when notifications arrive (mark as read)
+
+---
+
+## 🏁 Prerequisites
+
 - Node.js 20+
 - npm
-- A running SSE server (you can use `samples/sse-sample-server-app` from this repo)
+- A running SSE server (use the Spring Boot sample from this repo)
 
-## Install dependencies
-From the repo root:
+---
+
+## 🚀 Run
+
+### Step 1: Start the SSE server
+
+```bash
+# From repo root (in a separate terminal)
+mvn -pl samples/sse-sample-server-app spring-boot:run
 ```
+
+This starts the SSE server on **http://localhost:8080**.
+
+### Step 2: Install dependencies
+
+```bash
+# From repo root
 make setup
 ```
 
-## Run the sample
-Start the Spring Boot sample server (in a separate terminal):
-```
-mvn -pl samples/sse-sample-server-app spring-boot:run
-```
-This starts the SSE server on `http://localhost:8080`.
+### Step 3: Start the Angular app
 
-Start the Angular app:
-```
+```bash
 npx nx serve ng-sse-client-app
 ```
-Then open the URL shown in the terminal (typically `http://localhost:4200`).
 
-## How it works
-Open `samples/ng-sse-client-app/src/app/app.ts` to see the usage:
-- It injects the `SseClient`
-- Subscribes to `stream<any>(url, { events: ['message', 'notification'] })`
-- Parses payloads with a custom `parse` function (fallbacks to raw string)
+Open **http://localhost:4200** in your browser.
 
-By default, when you select a user in the UI, the app connects to:
+---
+
+## 🔍 How It Works
+
+The key file is [`src/app/app.ts`](src/app/app.ts):
+
+```typescript
+sse.stream<any>(`http://localhost:8080/${userId}`, {
+  events: ['notification'],
+  parse: (txt) => { try { return JSON.parse(txt); } catch { return txt; } },
+  reconnection: {
+    enabled: true,
+    maxRetries: -1,
+    initialDelayMs: 1000,
+    maxDelayMs: 30000,
+    backoffMultiplier: 2,
+    jitterRatio: 0.2,
+  },
+  callbacks: [{
+    eventType: 'notification',
+    condition: (d) => !!(d?.id),
+    apiCallback: markReadCallback,
+    retry: { enabled: true, maxRetries: 3, delayMs: 1000 },
+  }],
+}).subscribe(event => { /* update UI */ });
 ```
-http://localhost:8080/{userId}
-```
-The server sample emits a periodic complex `notification` event and simple `message` strings.
 
-## Customize endpoint
-Change the `url` in `app.ts` if your server runs elsewhere (host/port/path).
+| Feature | What happens |
+|---------|-------------|
+| **User selection** | Selecting a user connects to `http://localhost:8080/{userId}` |
+| **Event parsing** | JSON payloads are parsed; plain strings pass through as-is |
+| **Reconnection** | If the server goes down, exponential backoff kicks in automatically |
+| **Callbacks** | When a `notification` event arrives with an `id`, it POSTs to `/api/notifications/mark-read` |
 
-## Build
-```
+---
+
+## ⚙️ Customize
+
+| What | Where |
+|------|-------|
+| Server URL | Change `url` in `app.ts` |
+| Event types | Modify `events: [...]` array |
+| Reconnection settings | Adjust `reconnection: { ... }` |
+| Callback behavior | Modify `callbacks: [...]` array |
+
+---
+
+## 🏗️ Build & Test
+
+```bash
+# Build
 npx nx build ng-sse-client-app
-```
 
-## Test
-```
+# Test
 npx nx test ng-sse-client-app --ci --codeCoverage=false
 ```
 
-## Support
-Questions or issues: support@spectrayan.com
+---
+
+## 📄 License
+
+[Apache License 2.0](../../LICENSE)
+
+## 💬 Support
+
+Questions or issues: **support@spectrayan.com**
