@@ -22,7 +22,7 @@
   "devDependencies": {
     "@analogjs/vitest-angular": "^1.18.0",
     "@angular-devkit/core": "~21.2.0",
-    "@angular-devkit/schematics": "~21.2.0",
+    "@angular-devkit/schematics": "~22.0.1",
     "@angular/build": "~21.2.0",
     "@angular/cli": "~21.2.0",
     "@angular/compiler-cli": "~21.2.0",
