@@ -155,7 +155,11 @@ final class EmissionService {
         }
         // Serialization contention — bounded retry with spin-wait
         for (int attempt = 1; attempt <= maxEmitRetries; attempt++) {
-            Thread.onSpinWait();
+            if (attempt > 8) {
+                Thread.yield();
+            } else {
+                Thread.onSpinWait();
+            }
             result = sink.tryEmitNext(event);
             if (result != Sinks.EmitResult.FAIL_NON_SERIALIZED) {
                 if (attempt > 1 && log.isDebugEnabled()) {
