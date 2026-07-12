@@ -56,8 +56,8 @@ jobs:
           settings-file: .mvn/settings.xml
           working-directory: '.'
           server-id: maven-snapshots-repo
-          server-username: secrets.MAVEN_SERVER_USERNAME
-          server-password: secrets.MAVEN_SERVER_PASSWORD
+          server-username: ${{ secrets.MAVEN_SERVER_USERNAME }}
+          server-password: ${{ secrets.MAVEN_SERVER_PASSWORD }}
       - name: Import GPG private key
         uses: spectrayan/github-workflows/.github/actions/gpg-import@v1
         with:
