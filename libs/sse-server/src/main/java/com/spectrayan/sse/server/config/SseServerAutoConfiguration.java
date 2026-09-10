@@ -21,6 +21,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.server.WebFilter;
 import org.springframework.boot.web.server.WebServerFactoryCustomizer;
@@ -285,5 +286,35 @@ public class SseServerAutoConfiguration {
             com.spectrayan.sse.server.topic.TopicRegistry topicRegistry,
             SseServerProperties properties) {
         return new com.spectrayan.sse.server.metrics.SseMetrics(meterRegistry, topicRegistry, properties);
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.springframework.boot.health.contributor.ReactiveHealthIndicator")
+    @ConditionalOnProperty(prefix = "spectrayan.sse.server.actuator", name = "enabled", havingValue = "true", matchIfMissing = true)
+    static class SseActuatorHealthConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(name = "sseHealthIndicator")
+        @ConditionalOnProperty(prefix = "spectrayan.sse.server.actuator", name = "health", havingValue = "true", matchIfMissing = true)
+        public com.spectrayan.sse.server.actuator.SseHealthIndicator sseHealthIndicator(
+                com.spectrayan.sse.server.topic.TopicRegistry topicRegistry,
+                SseBroadcastBridge sseBroadcastBridge) {
+            return new com.spectrayan.sse.server.actuator.SseHealthIndicator(topicRegistry, sseBroadcastBridge);
+        }
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @ConditionalOnClass(name = "org.springframework.boot.actuate.info.InfoContributor")
+    @ConditionalOnProperty(prefix = "spectrayan.sse.server.actuator", name = "enabled", havingValue = "true", matchIfMissing = true)
+    static class SseActuatorInfoConfiguration {
+
+        @Bean
+        @ConditionalOnMissingBean(name = "sseInfoContributor")
+        @ConditionalOnProperty(prefix = "spectrayan.sse.server.actuator", name = "info", havingValue = "true", matchIfMissing = true)
+        public com.spectrayan.sse.server.actuator.SseInfoContributor sseInfoContributor(
+                SseServerProperties properties,
+                SseBroadcastBridge sseBroadcastBridge) {
+            return new com.spectrayan.sse.server.actuator.SseInfoContributor(properties, sseBroadcastBridge);
+        }
     }
 }

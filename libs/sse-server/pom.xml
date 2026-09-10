@@ -4,7 +4,7 @@
     <parent>
         <groupId>com.spectrayan.sse</groupId>
         <artifactId>spectrayan-sse-parent</artifactId>
-        <version>2.0.1</version>
+        <version>2.1.0</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>sse-server</artifactId>
@@ -73,6 +73,12 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-core</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <!-- Optional: Spring Boot Actuator (only active when consumer brings it in) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
             <optional>true</optional>
         </dependency>
     </dependencies>
