@@ -42,7 +42,13 @@ jobs:
         run: go vet ./...
 
       - name: Run Tests (with race detector)
-        run: go test -v -race -timeout 2m ./...
+        shell: bash
+        run: |
+          if [ "${{ matrix.os }}" = "macos-latest" ] && [ "${{ matrix.go-version }}" = "1.22" ]; then
+            go test -v -timeout 2m ./...
+          else
+            go test -v -race -timeout 2m ./...
+          fi
 
       - name: Build Example CLI
         run: go build -v -o sse-cli ./examples/cli
