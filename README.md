@@ -12,7 +12,7 @@
 Build real-time, event-driven applications with first-class SSE support on both server and client.
 Zero boilerplate. Production-grade. Horizontally scalable.
 
-[Server Docs](libs/sse-server/README.md) · [Client Docs](libs/ng-sse-client/README.md) · [Redis Bridge](libs/sse-server-bridge-redis/README.md) · [Cloud Stream Bridge](libs/sse-server-bridge-cloud-stream/README.md) · [Samples](samples/)
+[Server Docs](libs/sse-server/README.md) · [Client Docs](libs/ng-sse-client/README.md) · [NATS Bridge](libs/sse-server-bridge-nats/README.md) · [Redis Bridge](libs/sse-server-bridge-redis/README.md) · [Cloud Stream Bridge](libs/sse-server-bridge-cloud-stream/README.md) · [Samples](samples/)
 
 </div>
 
@@ -23,6 +23,7 @@ Zero boilerplate. Production-grade. Horizontally scalable.
 | Package | Description | Language |
 |---------|-------------|----------|
 | [`sse-server`](libs/sse-server/) | Reactive SSE emitter with auto-configuration, topic management, heartbeat, CORS, metrics & more | Java / Spring Boot |
+| [`sse-server-bridge-nats`](libs/sse-server-bridge-nats/) | Ultra-lightweight multi-pod event fan-out via NATS — sub-millisecond latency, zero Spring Cloud overhead | Java / NATS |
 | [`sse-server-bridge-redis`](libs/sse-server-bridge-redis/) | Multi-pod event fan-out via Redis Pub/Sub — just add the dependency, zero config | Java / Spring Data Redis |
 | [`sse-server-bridge-cloud-stream`](libs/sse-server-bridge-cloud-stream/) | Multi-pod event fan-out via Kafka, RabbitMQ, Google Pub/Sub, or any Spring Cloud Stream binder | Java / Spring Cloud |
 | [`ng-sse-client`](libs/ng-sse-client/) | Typed, zone-aware SSE client with auto-reconnect, backoff & jitter | TypeScript / Angular |
@@ -48,11 +49,12 @@ Zero boilerplate. Production-grade. Horizontally scalable.
 
 ### 🌐 Multi-Pod Scaling — *v2.0.0+*
 
+- **NATS bridge** — sub-millisecond fan-out via native NATS client, ultra-low memory overhead
 - **Redis bridge** — add one dependency for instant multi-pod support via Redis Pub/Sub
 - **Cloud Stream bridge** — use Kafka, RabbitMQ, Google Pub/Sub, Pulsar, or Azure Event Hubs
 - **Zero custom code** — auto-configured bridges, just add a dependency
 - **Self-deduplication** — instance-aware filtering prevents echo loops
-- **Two options** — lightweight Redis or full Spring Cloud Stream binder ecosystem
+- **Three options** — ultra-fast NATS, lightweight Redis, or full Spring Cloud Stream binder ecosystem
 
 ### 📱 Angular Client (`ng-sse-client`)
 
@@ -128,9 +130,31 @@ export class DashboardComponent {
 
 > SSE is inherently stateful — connections are held in-memory on one server. In multi-pod deployments, events emitted on Pod A won't reach clients on Pod B.
 
-**Choose your bridge — both require zero custom code:**
+**Choose your bridge — all require zero custom code:**
 
-### Option 1: Redis (simplest)
+### Option 1: NATS (fastest, lightest — sub-millisecond fan-out)
+
+```xml
+<!-- One dependency — sub-millisecond latency, minimal footprint -->
+<dependency>
+  <groupId>com.spectrayan.sse</groupId>
+  <artifactId>sse-server-bridge-nats</artifactId>
+  <version>2.1.0</version>
+</dependency>
+```
+
+```yaml
+spectrayan:
+  sse:
+    server:
+      bridge:
+        nats:
+          server: nats://localhost:4222
+```
+
+📖 [Full NATS bridge guide →](libs/sse-server-bridge-nats/README.md)
+
+### Option 2: Redis (simplest for Redis users)
 
 ```xml
 <!-- One dependency — that's it -->
@@ -151,7 +175,7 @@ spring:
 
 📖 [Full Redis bridge guide →](libs/sse-server-bridge-redis/README.md)
 
-### Option 2: Spring Cloud Stream (Kafka, RabbitMQ, etc.)
+### Option 3: Spring Cloud Stream (Kafka, RabbitMQ, etc.)
 
 ```xml
 <dependency>
@@ -187,8 +211,8 @@ flowchart LR
         A1["SSE Clients"]
         A2["emit(topic, data)"]
     end
-    subgraph Broker["Redis / Kafka / RabbitMQ / Pub/Sub"]
-        B1["sse-broadcast channel"]
+    subgraph Broker["NATS / Redis / Kafka / RabbitMQ"]
+        B1["sse-broadcast channel / subject"]
     end
     subgraph PodB["Pod B"]
         B2["SSE Clients"]
