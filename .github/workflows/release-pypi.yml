@@ -1,0 +1,90 @@
+name: Release Python Package (PyPI)
+
+on:
+  push:
+    tags:
+      - 'py-sse-client-v*'
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run — build and package only (do not publish to PyPI)'
+        required: false
+        default: false
+        type: boolean
+      version:
+        description: 'Override version (e.g. 2.0.0). Leave empty to use pyproject.toml'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  publish-pypi:
+    name: Build & Publish spectrayan-sse-client to PyPI
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatchling httpx pydantic pytest pytest-asyncio build twine
+
+      - name: Version override
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            sed -i "s/^version = .*/version = \"$VERSION\"/" clients/python/spectrayan-sse-client/pyproject.toml
+            echo "Overrode version to $VERSION"
+          elif [[ "$GITHUB_REF_NAME" =~ ^py-sse-client-v[0-9] ]]; then
+            VERSION="${GITHUB_REF_NAME#py-sse-client-v}"
+            sed -i "s/^version = .*/version = \"$VERSION\"/" clients/python/spectrayan-sse-client/pyproject.toml
+            echo "Set version from tag to $VERSION"
+          fi
+
+      - name: Run test suite
+        run: pytest -v clients/python/spectrayan-sse-client/tests
+
+      - name: Build sdist and wheel
+        run: python -m build clients/python/spectrayan-sse-client
+
+      - name: Validate distribution packages
+        run: twine check clients/python/spectrayan-sse-client/dist/*
+
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          DRY_RUN: ${{ github.event.inputs.dryRun || 'false' }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            echo "Dry run enabled — skipping PyPI upload."
+            exit 0
+          fi
+
+          if [ -z "$TWINE_PASSWORD" ]; then
+            echo "Error: PYPI_API_TOKEN secret is not configured." >&2
+            exit 1
+          fi
+
+          CURRENT_VER=$(grep -m1 '^version = ' clients/python/spectrayan-sse-client/pyproject.toml | sed 's/version = "\(.*\)"/\1/')
+          
+          # Idempotency check against PyPI registry
+          STATUS_CODE=$(curl -s -o /dev/null -w "%{http_code}" "https://pypi.org/pypi/spectrayan-sse-client/$CURRENT_VER/json" || echo "000")
+          if [ "$STATUS_CODE" = "200" ]; then
+            echo "⏭️ Version $CURRENT_VER of spectrayan-sse-client is already published on PyPI. Skipping."
+            exit 0
+          fi
+
+          echo "🚀 Uploading spectrayan-sse-client $CURRENT_VER to PyPI..."
+          twine upload --skip-existing clients/python/spectrayan-sse-client/dist/*
