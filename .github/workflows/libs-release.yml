@@ -68,6 +68,27 @@ jobs:
       - name: Build package
         run: python -m build clients/python/spectrayan-sse-client
 
+  # ---------- GO: build & test ----------
+  go_build_test:
+    name: Go go-sse-client • build & test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: clients/go
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: clients/go/go.mod
+      - name: Vet
+        run: go vet ./...
+      - name: Test
+        run: go test -v -race ./...
+      - name: Build Example CLI
+        run: go build -v -o sse-cli ./examples/cli
+
   # ---------- MAVEN: build & test ----------
   maven_build_test:
     name: Java SSE libraries • build & test

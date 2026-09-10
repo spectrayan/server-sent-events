@@ -1,0 +1,48 @@
+name: Go Client CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'clients/go/**'
+      - '.github/workflows/ci-go.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'clients/go/**'
+      - '.github/workflows/ci-go.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Go Test (Go ${{ matrix.go-version }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.22', '1.23']
+    defaults:
+      run:
+        working-directory: clients/go
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Go ${{ matrix.go-version }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+          cache-dependency-path: clients/go/go.mod
+
+      - name: Go Vet
+        run: go vet ./...
+
+      - name: Run Tests (with race detector)
+        run: go test -v -race -timeout 2m ./...
+
+      - name: Build Example CLI
+        run: go build -v -o sse-cli ./examples/cli
