@@ -22,6 +22,7 @@
     <module>libs/sse-server</module>
     <module>libs/sse-server-bridge-cloud-stream</module>
     <module>libs/sse-server-bridge-redis</module>
+    <module>libs/sse-java-client</module>
       <!--<module>samples/sse-sample-server-app</module>-->
   </modules>
 
