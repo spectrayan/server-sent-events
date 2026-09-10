@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+func TestVersion(t *testing.T) {
+	if Version != "2.0.1" {
+		t.Errorf("expected Version '2.0.1', got '%s'", Version)
+	}
+}
+
 func TestBackoff_Defaults(t *testing.T) {
 	cfg := DefaultReconnectionConfig()
 	if cfg.InitialDelay != 1*time.Second {

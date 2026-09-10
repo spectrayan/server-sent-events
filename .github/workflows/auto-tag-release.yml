@@ -9,6 +9,7 @@ on:
       - 'libs/sse-client/package.json'
       - 'libs/react-sse/package.json'
       - 'clients/python/spectrayan-sse-client/pyproject.toml'
+      - 'clients/go/version.go'
 
 permissions:
   contents: write
@@ -162,6 +163,33 @@ jobs:
             echo "⏭️ Python client version unchanged"
           fi
 
+      # ── Detect Go client version change ────────────────────────────
+      - name: Get current Go client version
+        id: go_current
+        run: |
+          VERSION=$(grep -m1 'Version = ' clients/go/version.go 2>/dev/null | sed 's/.*Version = "\(.*\)".*/\1/' || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Go client current version: $VERSION"
+
+      - name: Get previous Go client version
+        id: go_previous
+        run: |
+          VERSION=$(git show HEAD~1:clients/go/version.go 2>/dev/null | grep -m1 'Version = ' | sed 's/.*Version = "\(.*\)".*/\1/' || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Go client previous version: $VERSION"
+
+      - name: Check if Go client version changed
+        id: go_changed
+        run: |
+          if [ "${{ steps.go_current.outputs.version }}" != "${{ steps.go_previous.outputs.version }}" ] && \
+             [ -n "${{ steps.go_current.outputs.version }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Go client version changed: ${{ steps.go_previous.outputs.version }} → ${{ steps.go_current.outputs.version }}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Go client version unchanged"
+          fi
+
       # ── Create Maven release tag ──────────────────────────────────
       - name: Create Maven release tag
         if: steps.maven_changed.outputs.changed == 'true'
@@ -312,6 +340,40 @@ jobs:
             $PRERELEASE
           echo "✅ Created release: $TAG"
 
+      # ── Create Go release tag ─────────────────────────────────────
+      - name: Create Go release tag
+        if: steps.go_changed.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.go_current.outputs.version }}
+          PREV_VERSION: ${{ steps.go_previous.outputs.version }}
+        run: |
+          TAG="clients/go/v${VERSION}"
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "⏭️ Tag $TAG already exists on remote, skipping"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⏭️ Release $TAG already exists, skipping"
+            exit 0
+          fi
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qiE '(alpha|beta|rc|dev)'; then
+            PRERELEASE="--prerelease"
+          fi
+          git tag -a "$TAG" -m "Release go-sse-client $TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "🐹 go-sse-client v$VERSION" \
+            --generate-notes \
+            --notes-start-tag "clients/go/v${PREV_VERSION}" \
+            $PRERELEASE
+          echo "✅ Created release: $TAG"
+
+          # Warm up official Go module proxy and pkg.go.dev
+          echo "Warming up proxy.golang.org for $TAG..."
+          curl -s "https://proxy.golang.org/github.com/spectrayan/server-sent-events/clients/go/v2/@v/v${VERSION}.info" || true
+
       # ── Summary ──────────────────────────────────────────────────
       - name: Summary
         run: |
@@ -324,3 +386,4 @@ jobs:
           echo "| **@spectrayan/sse-client** | \`${{ steps.sse_previous.outputs.version }}\` | \`${{ steps.sse_current.outputs.version }}\` | ${{ steps.sse_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **@spectrayan/react-sse** | \`${{ steps.react_previous.outputs.version }}\` | \`${{ steps.react_current.outputs.version }}\` | ${{ steps.react_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **spectrayan-sse-client (Python)** | \`${{ steps.py_previous.outputs.version }}\` | \`${{ steps.py_current.outputs.version }}\` | ${{ steps.py_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **go-sse-client (Go)** | \`${{ steps.go_previous.outputs.version }}\` | \`${{ steps.go_current.outputs.version }}\` | ${{ steps.go_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
