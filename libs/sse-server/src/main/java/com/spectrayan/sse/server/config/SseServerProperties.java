@@ -52,6 +52,9 @@ public class SseServerProperties {
     // Cross-instance broadcast bridge configuration
     private Bridge bridge = new Bridge();
 
+    // Spring Boot Actuator integration
+    private Actuator actuator = new Actuator();
+
     public void setHeaders(List<SseHeader> headers) {
         this.headers = (headers != null ? headers : new ArrayList<>());
     }
@@ -199,5 +202,20 @@ public class SseServerProperties {
          * generated at startup.
          */
         private String instanceId;
+    }
+
+    /**
+     * Configuration for Spring Boot Actuator integration.
+     *
+     * @since 2.1.0
+     */
+    @Data
+    public static class Actuator {
+        /** Enable Actuator health indicator and info contributor. Default: true. */
+        private boolean enabled = true;
+        /** Enable /actuator/health/sse reactive health indicator. Default: true. */
+        private boolean health = true;
+        /** Enable /actuator/info SSE metadata contributor. Default: true. */
+        private boolean info = true;
     }
 }

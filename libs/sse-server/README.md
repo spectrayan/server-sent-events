@@ -4,7 +4,7 @@
 
 **Reactive Server-Sent Events for Spring Boot (WebFlux)**
 
-[![Maven Central](https://img.shields.io/badge/Maven_Central-2.0.0-blue?logo=apachemaven)](https://central.sonatype.com/artifact/com.spectrayan.sse/sse-server)
+[![Maven Central](https://img.shields.io/badge/Maven_Central-2.1.0-blue?logo=apachemaven)](https://central.sonatype.com/artifact/com.spectrayan.sse/sse-server)
 [![Java](https://img.shields.io/badge/Java-21+-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0-6DB33F?logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -22,7 +22,7 @@ heartbeat, session tracking, metrics, and multi-pod scaling — all from a singl
 <dependency>
   <groupId>com.spectrayan.sse</groupId>
   <artifactId>sse-server</artifactId>
-  <version>2.0.0</version>
+  <version>2.1.0</version>
 </dependency>
 ```
 
@@ -92,6 +92,7 @@ es.addEventListener('orderCreated', (e) => {
 | **Custom sink factories** | Implement `SseEmitterCustomizer` for advanced sink configuration |
 | **Codec customization** | `SseCodecCustomizer` bean to tweak `ServerCodecConfigurer` |
 | **Multi-pod scaling** | Pluggable `SseBroadcastBridge` SPI (v2.0.0+) |
+| **Actuator health & info** | Reactive `/actuator/health/sse` indicator & `/actuator/info` contributor (v2.1.0+) |
 
 ---
 
@@ -157,6 +158,12 @@ spectrayan:
       errors:
         enabled: true
         scope: GLOBAL                 # GLOBAL or SSE
+
+      # --- Actuator integration (v2.1.0+) ---
+      actuator:
+        enabled: true                 # Master switch (default: true)
+        health: true                  # Expose /actuator/health/sse
+        info: true                    # Expose /actuator/info SSE metadata
 
       # --- Multi-pod bridge (v2.0.0+) ---
       bridge:
@@ -289,6 +296,54 @@ spring:
 | Azure Event Hubs | `spring-cloud-azure-stream-binder-eventhubs` |
 
 📖 [Full Cloud Stream bridge guide →](../sse-server-bridge-cloud-stream/README.md)
+
+---
+
+## 🩺 Spring Boot Actuator Integration (v2.1.0+)
+
+When `spring-boot-starter-actuator` is on the application's classpath, `sse-server` automatically registers reactive health and info components.
+
+### 1. Health Indicator (`GET /actuator/health/sse` or `/actuator/health`)
+
+Reports whether the SSE server topic registry and broadcast bridge are running smoothly:
+
+```json
+{
+  "status": "UP",
+  "details": {
+    "activeTopics": 3,
+    "totalSubscribers": 42,
+    "bridge": "RedisBroadcastBridge",
+    "clustered": true
+  }
+}
+```
+
+### 2. Info Contributor (`GET /actuator/info`)
+
+Exposes library version, endpoint base path, bridge type, and streaming defaults:
+
+```json
+{
+  "sse": {
+    "version": "2.1.0",
+    "basePath": "/sse",
+    "bridge": "NoOpBroadcastBridge",
+    "clustered": false,
+    "stream": {
+      "heartbeatEnabled": true,
+      "heartbeatInterval": "PT15S",
+      "retryEnabled": true,
+      "retryInterval": "PT3S",
+      "mapErrorsToSse": true
+    },
+    "metrics": {
+      "enabled": true,
+      "perTopic": true
+    }
+  }
+}
+```
 
 ---
 
