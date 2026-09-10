@@ -1,6 +1,6 @@
 # Spectrayan Go SSE Client (`go-sse-client`)
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/spectrayan/server-sent-events/clients/go.svg)](https://pkg.go.dev/github.com/spectrayan/server-sent-events/clients/go)
+[![Go Reference](https://pkg.go.dev/badge/github.com/spectrayan/server-sent-events/clients/go/v2.svg)](https://pkg.go.dev/github.com/spectrayan/server-sent-events/clients/go/v2)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 Idiomatic, high-performance Go client for consuming Server-Sent Events (SSE / W3C EventSource) with channel-based streaming, `context.Context` cancellation, automatic reconnection with `Last-Event-ID` tracking, and jittered exponential backoff.
@@ -24,7 +24,7 @@ Part of the [Spectrayan Server-Sent Events](https://github.com/spectrayan/server
 ## Installation
 
 ```bash
-go get github.com/spectrayan/server-sent-events/clients/go
+go get github.com/spectrayan/server-sent-events/clients/go/v2
 ```
 
 ---
@@ -40,7 +40,7 @@ import (
 	"log"
 	"time"
 
-	sseclient "github.com/spectrayan/server-sent-events/clients/go"
+	sseclient "github.com/spectrayan/server-sent-events/clients/go/v2"
 )
 
 type StockTick struct {
