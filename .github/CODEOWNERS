@@ -1,0 +1,34 @@
+# Spectrayan Server-Sent Events CODEOWNERS
+# Automatically assigns reviewers when PRs touch specific modules.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default catch-all
+* @spectrayan/ai-engineering @sbharatjoshi
+
+# Core Java Server & Bridges
+/libs/sse-server/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-model/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-tools/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-test-starter/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-bridge-core/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-bridge-hazelcast/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-bridge-redis/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-bridge-spring-amqp/ @spectrayan/ai-engineering @sbharatjoshi
+/libs/sse-server-bridge-spring-redis/ @spectrayan/ai-engineering @sbharatjoshi
+
+# Sample Applications
+/samples/ @spectrayan/ai-engineering
+
+# Polyglot Client SDKs
+/libs/ng-sse-client/ @spectrayan/ai-engineering
+/libs/sse-client/ @spectrayan/ai-engineering
+/libs/react-sse/ @spectrayan/ai-engineering
+/libs/sse-java-client/ @spectrayan/ai-engineering
+/clients/python/ @spectrayan/ai-engineering
+/clients/go/ @spectrayan/ai-engineering
+
+# CI/CD, Workflows & Governance
+/.github/ @spectrayan/ai-engineering @sbharatjoshi
+/pom.xml @spectrayan/ai-engineering @sbharatjoshi
+/package.json @spectrayan/ai-engineering @sbharatjoshi
+*.md @spectrayan/ai-engineering
