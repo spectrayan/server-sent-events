@@ -142,3 +142,13 @@ __pycache__/
 htmlcov/
 *.egg-info/
 .eggs/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+clients/go/sse-cli
