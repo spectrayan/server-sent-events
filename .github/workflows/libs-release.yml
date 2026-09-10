@@ -49,6 +49,25 @@ jobs:
           script: 'test'
           args: ''
 
+  # ---------- PYTHON: build & test ----------
+  python_build_test:
+    name: Python spectrayan-sse-client • build & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install hatchling httpx pydantic pytest pytest-asyncio build
+      - name: Test
+        run: pytest -v clients/python/spectrayan-sse-client/tests
+      - name: Build package
+        run: python -m build clients/python/spectrayan-sse-client
+
   # ---------- MAVEN: build & test ----------
   maven_build_test:
     name: Java SSE libraries • build & test

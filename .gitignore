@@ -131,3 +131,14 @@ gradlew.bat
 .output.txt
 public.key.asc
 libs/ng-sse-client/node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+.eggs/
