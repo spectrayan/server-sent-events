@@ -199,9 +199,11 @@ jobs:
           PREV_VERSION: ${{ steps.maven_previous.outputs.version }}
         run: |
           TAG="v${VERSION}"
-          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
-            echo "⏭️ Tag $TAG already exists on remote, skipping"
-            exit 0
+          if ! git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            git tag -a "$TAG" -m "Release $TAG"
+            git push origin "$TAG"
+          else
+            echo "⏭️ Tag $TAG already exists on remote"
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
@@ -211,12 +213,16 @@ jobs:
           if echo "$VERSION" | grep -qiE '(SNAPSHOT|M[0-9]+|RC[0-9]+|alpha|beta)'; then
             PRERELEASE="--prerelease"
           fi
-          git tag -a "$TAG" -m "Release $TAG"
-          git push origin "$TAG"
+          NOTES_ARGS="--generate-notes"
+          if [ -n "$PREV_VERSION" ]; then
+            PREV_TAG="v${PREV_VERSION}"
+            if git ls-remote --tags origin "refs/tags/$PREV_TAG" | grep -q .; then
+              NOTES_ARGS="--generate-notes --notes-start-tag $PREV_TAG"
+            fi
+          fi
           gh release create "$TAG" \
             --title "🚀 Server Libraries $TAG" \
-            --generate-notes \
-            --notes-start-tag "v${PREV_VERSION}" \
+            $NOTES_ARGS \
             $PRERELEASE
           echo "✅ Created release: $TAG"
 
@@ -229,9 +235,11 @@ jobs:
           PREV_VERSION: ${{ steps.ng_previous.outputs.version }}
         run: |
           TAG="ng-sse-client-v${VERSION}"
-          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
-            echo "⏭️ Tag $TAG already exists on remote, skipping"
-            exit 0
+          if ! git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            git tag -a "$TAG" -m "Release @spectrayan/ng-sse-client $TAG"
+            git push origin "$TAG"
+          else
+            echo "⏭️ Tag $TAG already exists on remote"
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
@@ -241,12 +249,16 @@ jobs:
           if echo "$VERSION" | grep -qiE '(alpha|beta|rc|next)'; then
             PRERELEASE="--prerelease"
           fi
-          git tag -a "$TAG" -m "Release @spectrayan/ng-sse-client $TAG"
-          git push origin "$TAG"
+          NOTES_ARGS="--generate-notes"
+          if [ -n "$PREV_VERSION" ]; then
+            PREV_TAG="ng-sse-client-v${PREV_VERSION}"
+            if git ls-remote --tags origin "refs/tags/$PREV_TAG" | grep -q .; then
+              NOTES_ARGS="--generate-notes --notes-start-tag $PREV_TAG"
+            fi
+          fi
           gh release create "$TAG" \
             --title "📱 @spectrayan/ng-sse-client $VERSION" \
-            --generate-notes \
-            --notes-start-tag "ng-sse-client-v${PREV_VERSION}" \
+            $NOTES_ARGS \
             $PRERELEASE
           echo "✅ Created release: $TAG"
 
@@ -259,9 +271,11 @@ jobs:
           PREV_VERSION: ${{ steps.sse_previous.outputs.version }}
         run: |
           TAG="sse-client-v${VERSION}"
-          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
-            echo "⏭️ Tag $TAG already exists on remote, skipping"
-            exit 0
+          if ! git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            git tag -a "$TAG" -m "Release @spectrayan/sse-client $TAG"
+            git push origin "$TAG"
+          else
+            echo "⏭️ Tag $TAG already exists on remote"
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
@@ -271,12 +285,16 @@ jobs:
           if echo "$VERSION" | grep -qiE '(alpha|beta|rc|next)'; then
             PRERELEASE="--prerelease"
           fi
-          git tag -a "$TAG" -m "Release @spectrayan/sse-client $TAG"
-          git push origin "$TAG"
+          NOTES_ARGS="--generate-notes"
+          if [ -n "$PREV_VERSION" ]; then
+            PREV_TAG="sse-client-v${PREV_VERSION}"
+            if git ls-remote --tags origin "refs/tags/$PREV_TAG" | grep -q .; then
+              NOTES_ARGS="--generate-notes --notes-start-tag $PREV_TAG"
+            fi
+          fi
           gh release create "$TAG" \
             --title "📦 @spectrayan/sse-client $VERSION" \
-            --generate-notes \
-            --notes-start-tag "sse-client-v${PREV_VERSION}" \
+            $NOTES_ARGS \
             $PRERELEASE
           echo "✅ Created release: $TAG"
 
@@ -289,9 +307,11 @@ jobs:
           PREV_VERSION: ${{ steps.react_previous.outputs.version }}
         run: |
           TAG="react-sse-v${VERSION}"
-          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
-            echo "⏭️ Tag $TAG already exists on remote, skipping"
-            exit 0
+          if ! git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            git tag -a "$TAG" -m "Release @spectrayan/react-sse $TAG"
+            git push origin "$TAG"
+          else
+            echo "⏭️ Tag $TAG already exists on remote"
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
@@ -301,12 +321,16 @@ jobs:
           if echo "$VERSION" | grep -qiE '(alpha|beta|rc|next)'; then
             PRERELEASE="--prerelease"
           fi
-          git tag -a "$TAG" -m "Release @spectrayan/react-sse $TAG"
-          git push origin "$TAG"
+          NOTES_ARGS="--generate-notes"
+          if [ -n "$PREV_VERSION" ]; then
+            PREV_TAG="react-sse-v${PREV_VERSION}"
+            if git ls-remote --tags origin "refs/tags/$PREV_TAG" | grep -q .; then
+              NOTES_ARGS="--generate-notes --notes-start-tag $PREV_TAG"
+            fi
+          fi
           gh release create "$TAG" \
             --title "⚛️ @spectrayan/react-sse $VERSION" \
-            --generate-notes \
-            --notes-start-tag "react-sse-v${PREV_VERSION}" \
+            $NOTES_ARGS \
             $PRERELEASE
           echo "✅ Created release: $TAG"
 
@@ -319,9 +343,11 @@ jobs:
           PREV_VERSION: ${{ steps.py_previous.outputs.version }}
         run: |
           TAG="py-sse-client-v${VERSION}"
-          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
-            echo "⏭️ Tag $TAG already exists on remote, skipping"
-            exit 0
+          if ! git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            git tag -a "$TAG" -m "Release spectrayan-sse-client $TAG"
+            git push origin "$TAG"
+          else
+            echo "⏭️ Tag $TAG already exists on remote"
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
@@ -331,12 +357,16 @@ jobs:
           if echo "$VERSION" | grep -qiE '(alpha|beta|rc|dev|a[0-9]|b[0-9])'; then
             PRERELEASE="--prerelease"
           fi
-          git tag -a "$TAG" -m "Release spectrayan-sse-client $TAG"
-          git push origin "$TAG"
+          NOTES_ARGS="--generate-notes"
+          if [ -n "$PREV_VERSION" ]; then
+            PREV_TAG="py-sse-client-v${PREV_VERSION}"
+            if git ls-remote --tags origin "refs/tags/$PREV_TAG" | grep -q .; then
+              NOTES_ARGS="--generate-notes --notes-start-tag $PREV_TAG"
+            fi
+          fi
           gh release create "$TAG" \
             --title "🐍 spectrayan-sse-client $VERSION" \
-            --generate-notes \
-            --notes-start-tag "py-sse-client-v${PREV_VERSION}" \
+            $NOTES_ARGS \
             $PRERELEASE
           echo "✅ Created release: $TAG"
 
@@ -349,9 +379,11 @@ jobs:
           PREV_VERSION: ${{ steps.go_previous.outputs.version }}
         run: |
           TAG="clients/go/v${VERSION}"
-          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
-            echo "⏭️ Tag $TAG already exists on remote, skipping"
-            exit 0
+          if ! git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            git tag -a "$TAG" -m "Release go-sse-client $TAG"
+            git push origin "$TAG"
+          else
+            echo "⏭️ Tag $TAG already exists on remote"
           fi
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
@@ -361,12 +393,16 @@ jobs:
           if echo "$VERSION" | grep -qiE '(alpha|beta|rc|dev)'; then
             PRERELEASE="--prerelease"
           fi
-          git tag -a "$TAG" -m "Release go-sse-client $TAG"
-          git push origin "$TAG"
+          NOTES_ARGS="--generate-notes"
+          if [ -n "$PREV_VERSION" ]; then
+            PREV_TAG="clients/go/v${PREV_VERSION}"
+            if git ls-remote --tags origin "refs/tags/$PREV_TAG" | grep -q .; then
+              NOTES_ARGS="--generate-notes --notes-start-tag $PREV_TAG"
+            fi
+          fi
           gh release create "$TAG" \
             --title "🐹 go-sse-client v$VERSION" \
-            --generate-notes \
-            --notes-start-tag "clients/go/v${PREV_VERSION}" \
+            $NOTES_ARGS \
             $PRERELEASE
           echo "✅ Created release: $TAG"
 
