@@ -72,35 +72,6 @@ jobs:
           goals: '-B -U verify'
           working-directory: '.'
 
-  # ---------- Publish to npm (manual only) ----------
-  publish_npm:
-    name: Publish ng-sse-client to npm
-    needs: [ng_build_test]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'workflow_dispatch'
-    permissions:
-      contents: read
-      id-token: write
-    steps:
-      - uses: actions/checkout@v5
-      - name: Setup Node
-        uses: spectrayan/github-workflows/.github/actions/node-setup@v1
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          npm-version: ${{ env.NPM_VERSION }}
-          registry-url: 'https://registry.npmjs.org'
-      - name: Install dependencies
-        uses: spectrayan/github-workflows/.github/actions/npm-install@v1
-        with:
-          working-directory: '.'
-          ci: true
-      - name: Build and Publish (npm run publish)
-        uses: spectrayan/github-workflows/.github/actions/node-build@v1
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        with:
-          working-directory: '.'
-          script: 'publish'
 
   # ---------- Publish to Maven Central (manual only) ----------
   publish_maven:
