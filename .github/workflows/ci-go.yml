@@ -24,6 +24,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         go-version: ['1.22', '1.23']
+        exclude:
+          # Go 1.22 internal linker lacks LC_UUID required by macOS 15+ (Sequoia) dyld
+          - os: macos-latest
+            go-version: '1.22'
     defaults:
       run:
         working-directory: clients/go
@@ -42,13 +46,7 @@ jobs:
         run: go vet ./...
 
       - name: Run Tests (with race detector)
-        shell: bash
-        run: |
-          if [ "${{ matrix.os }}" = "macos-latest" ] && [ "${{ matrix.go-version }}" = "1.22" ]; then
-            go test -v -timeout 2m ./...
-          else
-            go test -v -race -timeout 2m ./...
-          fi
+        run: go test -v -race -timeout 2m ./...
 
       - name: Build Example CLI
         run: go build -v -o sse-cli ./examples/cli
