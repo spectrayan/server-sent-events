@@ -108,7 +108,7 @@ jobs:
 
   # ---------- Publish to GitHub Packages (automatic on push to main) ----------
   publish_gpr_npm:
-    name: Publish ng-sse-client to GitHub Packages (npm)
+    name: Publish npm packages to GitHub Packages
     needs: [ng_build_test]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -129,16 +129,18 @@ jobs:
         with:
           working-directory: '.'
           ci: true
-      - name: Build package
+      - name: Build packages
         uses: spectrayan/github-workflows/.github/actions/node-build@v1
         with:
           working-directory: '.'
           script: 'build'
       - name: Publish to GitHub Packages (npm)
-        working-directory: dist/libs/ng-sse-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npm publish --registry=https://npm.pkg.github.com || echo 'Version already published, skipping'
+        run: |
+          cd dist/libs/ng-sse-client && npm publish --registry=https://npm.pkg.github.com || echo 'ng-sse-client already published, skipping'
+          cd ../../../libs/sse-client && npm publish --registry=https://npm.pkg.github.com || echo 'sse-client already published, skipping'
+          cd ../../libs/react-sse && npm publish --registry=https://npm.pkg.github.com || echo 'react-sse already published, skipping'
 
   publish_gpr_maven:
     name: Publish SSE libraries to GitHub Packages (Maven)

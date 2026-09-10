@@ -1,0 +1,51 @@
+{
+  "name": "@spectrayan/react-sse",
+  "version": "2.0.0",
+  "description": "Idiomatic React hooks and context providers for Server-Sent Events (SSE), built on @spectrayan/sse-client.",
+  "license": "Apache-2.0",
+  "author": "Spectrayan Maintainers <dev@spectrayan.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spectrayan/server-sent-events.git",
+    "directory": "libs/react-sse"
+  },
+  "bugs": {
+    "url": "https://github.com/spectrayan/server-sent-events/issues"
+  },
+  "homepage": "https://github.com/spectrayan/server-sent-events/tree/main/libs/react-sse#readme",
+  "keywords": [
+    "react",
+    "react-hooks",
+    "sse",
+    "server-sent-events",
+    "eventsource",
+    "streaming",
+    "real-time"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "peerDependencies": {
+    "@spectrayan/sse-client": "^2.0.0",
+    "react": ">=18.0.0"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --out-dir dist --external react",
+    "test": "vitest run"
+  }
+}

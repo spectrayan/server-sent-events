@@ -15,7 +15,9 @@
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@spectrayan/ng-sse-client": ["libs/ng-sse-client/src/index.ts"]
+      "@spectrayan/ng-sse-client": ["libs/ng-sse-client/src/index.ts"],
+      "@spectrayan/sse-client": ["libs/sse-client/src/index.ts"],
+      "@spectrayan/react-sse": ["libs/react-sse/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

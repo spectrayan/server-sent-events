@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "../../",
+    "outDir": "../../dist/out-tsc",
+    "declaration": true,
+    "declarationMap": true,
+    "inlineSources": true,
+    "jsx": "react-jsx",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "moduleResolution": "node",
+    "types": ["node"]
+  },
+  "exclude": ["tests/**/*.test.tsx", "tests/**/*.test.ts", "vitest.config.mts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

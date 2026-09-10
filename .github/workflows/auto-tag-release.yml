@@ -6,6 +6,8 @@ on:
     paths:
       - 'pom.xml'
       - 'libs/ng-sse-client/package.json'
+      - 'libs/sse-client/package.json'
+      - 'libs/react-sse/package.json'
 
 permissions:
   contents: write
@@ -38,8 +40,7 @@ jobs:
         id: maven_changed
         run: |
           if [ "${{ steps.maven_current.outputs.version }}" != "${{ steps.maven_previous.outputs.version }}" ] && \
-             [ -n "${{ steps.maven_current.outputs.version }}" ] && \
-             [ -n "${{ steps.maven_previous.outputs.version }}" ]; then
+             [ -n "${{ steps.maven_current.outputs.version }}" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
             echo "✅ Maven version changed: ${{ steps.maven_previous.outputs.version }} → ${{ steps.maven_current.outputs.version }}"
           else
@@ -47,34 +48,88 @@ jobs:
             echo "⏭️ Maven version unchanged"
           fi
 
-      # ── Detect npm version change ────────────────────────────────
-      - name: Get current npm version
-        id: npm_current
+      # ── Detect ng-sse-client version change ────────────────────────
+      - name: Get current ng-sse-client version
+        id: ng_current
         run: |
-          VERSION=$(node -p "require('./libs/ng-sse-client/package.json').version")
+          VERSION=$(node -p "require('./libs/ng-sse-client/package.json').version" 2>/dev/null || echo "")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "npm current version: $VERSION"
+          echo "ng-sse-client current version: $VERSION"
 
-      - name: Get previous npm version
-        id: npm_previous
+      - name: Get previous ng-sse-client version
+        id: ng_previous
         run: |
-          VERSION=$(git show HEAD~1:libs/ng-sse-client/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" || echo "")
+          VERSION=$(git show HEAD~1:libs/ng-sse-client/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "")
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "npm previous version: $VERSION"
+          echo "ng-sse-client previous version: $VERSION"
 
-      - name: Check if npm version changed
-        id: npm_changed
+      - name: Check if ng-sse-client version changed
+        id: ng_changed
         run: |
-          if [ "${{ steps.npm_current.outputs.version }}" != "${{ steps.npm_previous.outputs.version }}" ] && \
-             [ -n "${{ steps.npm_current.outputs.version }}" ] && \
-             [ -n "${{ steps.npm_previous.outputs.version }}" ]; then
+          if [ "${{ steps.ng_current.outputs.version }}" != "${{ steps.ng_previous.outputs.version }}" ] && \
+             [ -n "${{ steps.ng_current.outputs.version }}" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
-            echo "✅ npm version changed: ${{ steps.npm_previous.outputs.version }} → ${{ steps.npm_current.outputs.version }}"
+            echo "✅ ng-sse-client version changed: ${{ steps.ng_previous.outputs.version }} → ${{ steps.ng_current.outputs.version }}"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
-            echo "⏭️ npm version unchanged"
+            echo "⏭️ ng-sse-client version unchanged"
           fi
 
+      # ── Detect sse-client version change ───────────────────────────
+      - name: Get current sse-client version
+        id: sse_current
+        run: |
+          VERSION=$(node -p "require('./libs/sse-client/package.json').version" 2>/dev/null || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sse-client current version: $VERSION"
+
+      - name: Get previous sse-client version
+        id: sse_previous
+        run: |
+          VERSION=$(git show HEAD~1:libs/sse-client/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "sse-client previous version: $VERSION"
+
+      - name: Check if sse-client version changed
+        id: sse_changed
+        run: |
+          if [ "${{ steps.sse_current.outputs.version }}" != "${{ steps.sse_previous.outputs.version }}" ] && \
+             [ -n "${{ steps.sse_current.outputs.version }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ sse-client version changed: ${{ steps.sse_previous.outputs.version }} → ${{ steps.sse_current.outputs.version }}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ sse-client version unchanged"
+          fi
+
+      # ── Detect react-sse version change ────────────────────────────
+      - name: Get current react-sse version
+        id: react_current
+        run: |
+          VERSION=$(node -p "require('./libs/react-sse/package.json').version" 2>/dev/null || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "react-sse current version: $VERSION"
+
+      - name: Get previous react-sse version
+        id: react_previous
+        run: |
+          VERSION=$(git show HEAD~1:libs/react-sse/package.json 2>/dev/null | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).version" 2>/dev/null || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "react-sse previous version: $VERSION"
+
+      - name: Check if react-sse version changed
+        id: react_changed
+        run: |
+          if [ "${{ steps.react_current.outputs.version }}" != "${{ steps.react_previous.outputs.version }}" ] && \
+             [ -n "${{ steps.react_current.outputs.version }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ react-sse version changed: ${{ steps.react_previous.outputs.version }} → ${{ steps.react_current.outputs.version }}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ react-sse version unchanged"
+          fi
+
+      # ── Create Maven release tag ──────────────────────────────────
       - name: Create Maven release tag
         if: steps.maven_changed.outputs.changed == 'true'
         env:
@@ -83,76 +138,115 @@ jobs:
           PREV_VERSION: ${{ steps.maven_previous.outputs.version }}
         run: |
           TAG="v${VERSION}"
-
-          # Check if tag already exists (locally or on remote)
           if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
             echo "⏭️ Tag $TAG already exists on remote, skipping"
             exit 0
           fi
-
-          # Check if a GitHub Release already exists for this tag
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
             exit 0
           fi
-
-          # Determine pre-release flag
           PRERELEASE=""
           if echo "$VERSION" | grep -qiE '(SNAPSHOT|M[0-9]+|RC[0-9]+|alpha|beta)'; then
             PRERELEASE="--prerelease"
           fi
-
-          # Create annotated tag and push
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
-
-          # Create GitHub Release with auto-generated notes
           gh release create "$TAG" \
             --title "🚀 Server Libraries $TAG" \
             --generate-notes \
             --notes-start-tag "v${PREV_VERSION}" \
             $PRERELEASE
-
           echo "✅ Created release: $TAG"
 
-      - name: Create npm release tag
-        if: steps.npm_changed.outputs.changed == 'true'
+      # ── Create ng-sse-client release tag ───────────────────────────
+      - name: Create ng-sse-client release tag
+        if: steps.ng_changed.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.npm_current.outputs.version }}
-          PREV_VERSION: ${{ steps.npm_previous.outputs.version }}
+          VERSION: ${{ steps.ng_current.outputs.version }}
+          PREV_VERSION: ${{ steps.ng_previous.outputs.version }}
         run: |
           TAG="ng-sse-client-v${VERSION}"
-
-          # Check if tag already exists (locally or on remote)
           if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
             echo "⏭️ Tag $TAG already exists on remote, skipping"
             exit 0
           fi
-
-          # Check if a GitHub Release already exists for this tag
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "⏭️ Release $TAG already exists, skipping"
             exit 0
           fi
-
-          # Determine pre-release flag
           PRERELEASE=""
           if echo "$VERSION" | grep -qiE '(alpha|beta|rc|next)'; then
             PRERELEASE="--prerelease"
           fi
-
-          # Create annotated tag and push
           git tag -a "$TAG" -m "Release @spectrayan/ng-sse-client $TAG"
           git push origin "$TAG"
-
-          # Create GitHub Release with auto-generated notes
           gh release create "$TAG" \
             --title "📱 @spectrayan/ng-sse-client $VERSION" \
             --generate-notes \
             --notes-start-tag "ng-sse-client-v${PREV_VERSION}" \
             $PRERELEASE
+          echo "✅ Created release: $TAG"
 
+      # ── Create sse-client release tag ──────────────────────────────
+      - name: Create sse-client release tag
+        if: steps.sse_changed.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.sse_current.outputs.version }}
+          PREV_VERSION: ${{ steps.sse_previous.outputs.version }}
+        run: |
+          TAG="sse-client-v${VERSION}"
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "⏭️ Tag $TAG already exists on remote, skipping"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⏭️ Release $TAG already exists, skipping"
+            exit 0
+          fi
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qiE '(alpha|beta|rc|next)'; then
+            PRERELEASE="--prerelease"
+          fi
+          git tag -a "$TAG" -m "Release @spectrayan/sse-client $TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "📦 @spectrayan/sse-client $VERSION" \
+            --generate-notes \
+            --notes-start-tag "sse-client-v${PREV_VERSION}" \
+            $PRERELEASE
+          echo "✅ Created release: $TAG"
+
+      # ── Create react-sse release tag ───────────────────────────────
+      - name: Create react-sse release tag
+        if: steps.react_changed.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.react_current.outputs.version }}
+          PREV_VERSION: ${{ steps.react_previous.outputs.version }}
+        run: |
+          TAG="react-sse-v${VERSION}"
+          if git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            echo "⏭️ Tag $TAG already exists on remote, skipping"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⏭️ Release $TAG already exists, skipping"
+            exit 0
+          fi
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qiE '(alpha|beta|rc|next)'; then
+            PRERELEASE="--prerelease"
+          fi
+          git tag -a "$TAG" -m "Release @spectrayan/react-sse $TAG"
+          git push origin "$TAG"
+          gh release create "$TAG" \
+            --title "⚛️ @spectrayan/react-sse $VERSION" \
+            --generate-notes \
+            --notes-start-tag "react-sse-v${PREV_VERSION}" \
+            $PRERELEASE
           echo "✅ Created release: $TAG"
 
       # ── Summary ──────────────────────────────────────────────────
@@ -163,4 +257,6 @@ jobs:
           echo "| Package | Previous | Current | Tagged? |" >> "$GITHUB_STEP_SUMMARY"
           echo "|---------|----------|---------|---------|" >> "$GITHUB_STEP_SUMMARY"
           echo "| **Server (Maven)** | \`${{ steps.maven_previous.outputs.version }}\` | \`${{ steps.maven_current.outputs.version }}\` | ${{ steps.maven_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| **Client (npm)** | \`${{ steps.npm_previous.outputs.version }}\` | \`${{ steps.npm_current.outputs.version }}\` | ${{ steps.npm_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **@spectrayan/ng-sse-client** | \`${{ steps.ng_previous.outputs.version }}\` | \`${{ steps.ng_current.outputs.version }}\` | ${{ steps.ng_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **@spectrayan/sse-client** | \`${{ steps.sse_previous.outputs.version }}\` | \`${{ steps.sse_current.outputs.version }}\` | ${{ steps.sse_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **@spectrayan/react-sse** | \`${{ steps.react_previous.outputs.version }}\` | \`${{ steps.react_current.outputs.version }}\` | ${{ steps.react_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
