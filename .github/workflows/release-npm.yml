@@ -1,0 +1,80 @@
+﻿name: Release NPM Packages
+
+on:
+  push:
+    tags:
+      - 'ng-sse-client-v*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      dryRun:
+        description: 'Dry run — build and package only (do not publish to registry)'
+        required: false
+        default: false
+        type: boolean
+      version:
+        description: 'Override version (e.g. 2.0.0). Leave empty to use tag or package.json'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  NX_DAEMON: 'false'
+
+jobs:
+  publish-npm:
+    name: Build & Publish @spectrayan/ng-sse-client to NPM
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Build and Publish @spectrayan/ng-sse-client
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ "${{ github.event.inputs.dryRun }}" != "true" ] && [ -z "${NODE_AUTH_TOKEN}" ]; then
+            echo "Error: NPM_TOKEN secret is not configured." >&2
+            exit 1
+          fi
+
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+            npm --prefix libs/ng-sse-client version "$VERSION" --no-git-tag-version --allow-same-version
+          elif [[ "$GITHUB_REF_NAME" =~ ^ng-sse-client-v[0-9] ]]; then
+            VERSION="${GITHUB_REF_NAME#ng-sse-client-v}"
+            npm --prefix libs/ng-sse-client version "$VERSION" --no-git-tag-version --allow-same-version
+          elif [[ "$GITHUB_REF_NAME" =~ ^v[0-9] ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            npm --prefix libs/ng-sse-client version "$VERSION" --no-git-tag-version --allow-same-version
+          fi
+
+          npm ci
+          npx nx test ng-sse-client
+          npx nx build ng-sse-client
+
+          EXTRA_FLAGS=""
+          if [ "${{ github.event.inputs.dryRun }}" = "true" ]; then
+            EXTRA_FLAGS="--dry-run"
+          fi
+
+          CURRENT_VER=$(node -p "require('./libs/ng-sse-client/package.json').version")
+          if [ "${{ github.event.inputs.dryRun }}" != "true" ] && npm view "@spectrayan/ng-sse-client@$CURRENT_VER" version >/dev/null 2>&1; then
+            echo "Version $CURRENT_VER of @spectrayan/ng-sse-client is already published on npm. Skipping publish."
+          else
+            echo "Publishing @spectrayan/ng-sse-client@$CURRENT_VER to NPM..."
+            cd dist/libs/ng-sse-client
+            npm publish --access public $EXTRA_FLAGS
+          fi

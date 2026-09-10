@@ -5,7 +5,11 @@
   "scripts": {
     "build": "nx build ng-sse-client",
     "test": "nx test ng-sse-client",
-    "publish": "npm config set provenance true && nx build ng-sse-client && npm publish --access public --prefix dist/libs/ng-sse-client"
+    "build:client": "nx build ng-sse-client",
+    "test:client": "nx test ng-sse-client",
+    "pack:client": "nx build ng-sse-client && npm pack dist/libs/ng-sse-client",
+    "publish:client": "nx build ng-sse-client && cd dist/libs/ng-sse-client && npm publish --access public",
+    "publish": "nx build ng-sse-client && cd dist/libs/ng-sse-client && npm publish --access public"
   },
   "private": true,
   "dependencies": {
