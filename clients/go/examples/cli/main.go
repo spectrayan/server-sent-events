@@ -10,7 +10,7 @@ import (
 	"syscall"
 	"time"
 
-	sseclient "github.com/spectrayan/server-sent-events/clients/go"
+	sseclient "github.com/spectrayan/server-sent-events/clients/go/v2"
 )
 
 func main() {
