@@ -54,9 +54,6 @@ buildNumber.properties
 # Gradle
 .gradle/
 build/
-gradle/
-gradlew
-gradlew.bat
 
 .nx
 
@@ -118,9 +115,6 @@ buildNumber.properties
 # Gradle
 .gradle/
 build/
-gradle/
-gradlew
-gradlew.bat
 
 .nx
 

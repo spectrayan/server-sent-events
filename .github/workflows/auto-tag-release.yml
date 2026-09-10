@@ -10,6 +10,7 @@ on:
       - 'libs/react-sse/package.json'
       - 'clients/python/spectrayan-sse-client/pyproject.toml'
       - 'clients/go/version.go'
+      - 'clients/kotlin/gradle.properties'
 
 permissions:
   contents: write
@@ -188,6 +189,33 @@ jobs:
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
             echo "⏭️ Go client version unchanged"
+          fi
+
+      # ── Detect Kotlin client version change ────────────────────────
+      - name: Get current Kotlin client version
+        id: kt_current
+        run: |
+          VERSION=$(grep -m1 '^version=' clients/kotlin/gradle.properties 2>/dev/null | cut -d'=' -f2 | tr -d ' ' || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Kotlin client current version: $VERSION"
+
+      - name: Get previous Kotlin client version
+        id: kt_previous
+        run: |
+          VERSION=$(git show HEAD~1:clients/kotlin/gradle.properties 2>/dev/null | grep -m1 '^version=' | cut -d'=' -f2 | tr -d ' ' || echo "")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Kotlin client previous version: $VERSION"
+
+      - name: Check if Kotlin client version changed
+        id: kt_changed
+        run: |
+          if [ "${{ steps.kt_current.outputs.version }}" != "${{ steps.kt_previous.outputs.version }}" ] && \
+             [ -n "${{ steps.kt_current.outputs.version }}" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Kotlin client version changed: ${{ steps.kt_previous.outputs.version }} → ${{ steps.kt_current.outputs.version }}"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "⏭️ Kotlin client version unchanged"
           fi
 
       # ── Create Maven release tag ──────────────────────────────────
@@ -410,6 +438,42 @@ jobs:
           echo "Warming up proxy.golang.org for $TAG..."
           curl -s "https://proxy.golang.org/github.com/spectrayan/server-sent-events/clients/go/v2/@v/v${VERSION}.info" || true
 
+      # ── Create Kotlin release tag ─────────────────────────────────
+      - name: Create Kotlin release tag
+        if: steps.kt_changed.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.kt_current.outputs.version }}
+          PREV_VERSION: ${{ steps.kt_previous.outputs.version }}
+        run: |
+          TAG="clients/kotlin/v${VERSION}"
+          if ! git ls-remote --tags origin "refs/tags/$TAG" | grep -q .; then
+            git tag -a "$TAG" -m "Release spectrayan-sse-kotlin $TAG"
+            git push origin "$TAG"
+          else
+            echo "⏭️ Tag $TAG already exists on remote"
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "⏭️ Release $TAG already exists, skipping"
+            exit 0
+          fi
+          PRERELEASE=""
+          if echo "$VERSION" | grep -qiE '(alpha|beta|rc|dev|SNAPSHOT)'; then
+            PRERELEASE="--prerelease"
+          fi
+          NOTES_ARGS="--generate-notes"
+          if [ -n "$PREV_VERSION" ]; then
+            PREV_TAG="clients/kotlin/v${PREV_VERSION}"
+            if git ls-remote --tags origin "refs/tags/$PREV_TAG" | grep -q .; then
+              NOTES_ARGS="--generate-notes --notes-start-tag $PREV_TAG"
+            fi
+          fi
+          gh release create "$TAG" \
+            --title "📱 spectrayan-sse-kotlin v$VERSION" \
+            $NOTES_ARGS \
+            $PRERELEASE
+          echo "✅ Created release: $TAG"
+
       # ── Summary ──────────────────────────────────────────────────
       - name: Summary
         run: |
@@ -423,3 +487,4 @@ jobs:
           echo "| **@spectrayan/react-sse** | \`${{ steps.react_previous.outputs.version }}\` | \`${{ steps.react_current.outputs.version }}\` | ${{ steps.react_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **spectrayan-sse-client (Python)** | \`${{ steps.py_previous.outputs.version }}\` | \`${{ steps.py_current.outputs.version }}\` | ${{ steps.py_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
           echo "| **go-sse-client (Go)** | \`${{ steps.go_previous.outputs.version }}\` | \`${{ steps.go_current.outputs.version }}\` | ${{ steps.go_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| **spectrayan-sse-kotlin (Kotlin)** | \`${{ steps.kt_previous.outputs.version }}\` | \`${{ steps.kt_current.outputs.version }}\` | ${{ steps.kt_changed.outputs.changed == 'true' && '✅ Yes' || '⏭️ No' }} |" >> "$GITHUB_STEP_SUMMARY"

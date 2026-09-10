@@ -26,6 +26,7 @@
 /libs/sse-java-client/ @spectrayan/ai-engineering
 /clients/python/ @spectrayan/ai-engineering
 /clients/go/ @spectrayan/ai-engineering
+/clients/kotlin/ @spectrayan/ai-engineering
 
 # CI/CD, Workflows & Governance
 /.github/ @spectrayan/ai-engineering @sbharatjoshi
