@@ -1,0 +1,49 @@
+{
+  "name": "@spectrayan/sse-client",
+  "version": "2.0.0",
+  "description": "Type-safe, framework-agnostic Server-Sent Events (SSE) client for browser and Node.js with auto-reconnect, exponential backoff, jitter, and typed streams.",
+  "license": "Apache-2.0",
+  "author": "Spectrayan Maintainers <dev@spectrayan.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spectrayan/server-sent-events.git",
+    "directory": "libs/sse-client"
+  },
+  "bugs": {
+    "url": "https://github.com/spectrayan/server-sent-events/issues"
+  },
+  "homepage": "https://github.com/spectrayan/server-sent-events/tree/main/libs/sse-client#readme",
+  "keywords": [
+    "sse",
+    "server-sent-events",
+    "eventsource",
+    "streaming",
+    "real-time",
+    "reconnection",
+    "typescript",
+    "webstreams",
+    "http2"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --clean --out-dir dist",
+    "test": "vitest run"
+  }
+}

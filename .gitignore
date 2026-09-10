@@ -1,5 +1,5 @@
 # Angular specific
-/dist/
+dist/
 /out-tsc/
 /tmp/
 /coverage/
@@ -64,7 +64,7 @@ gradlew.bat
 .vscode
 
 # Angular specific
-/dist/
+dist/
 /out-tsc/
 /tmp/
 /coverage/

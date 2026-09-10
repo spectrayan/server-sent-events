@@ -1,0 +1,22 @@
+{
+  "name": "react-sse",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/react-sse/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "nx:run-commands",
+      "outputs": ["{workspaceRoot}/libs/react-sse/dist"],
+      "options": {
+        "command": "tsup src/index.ts --format esm,cjs --dts --clean --out-dir dist --external react",
+        "cwd": "libs/react-sse"
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "vitest run --config libs/react-sse/vitest.config.mts"
+      }
+    }
+  }
+}
