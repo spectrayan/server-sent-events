@@ -70,7 +70,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-release-plugin</artifactId>
-              <version>3.1.1</version>
+              <version>3.3.1</version>
               <configuration>
                   <!-- Tag like 1.0.0, 1.0.0-M1, 1.0.0-RC1, etc. (no leading 'v' to follow Spring conventions) -->
                   <tagNameFormat>@{project.version}</tagNameFormat>
@@ -88,7 +88,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-deploy-plugin</artifactId>
-              <version>3.1.1</version>
+              <version>3.1.4</version>
               <configuration>
                   <!-- Use properties that we will define in settings.xml -->
                   <altDeploymentRepository>${mavenAltDeploymentRepository}</altDeploymentRepository>
@@ -98,7 +98,7 @@
           <plugin>
               <groupId>org.sonatype.central</groupId>
               <artifactId>central-publishing-maven-plugin</artifactId>
-              <version>0.9.0</version>
+              <version>0.11.0</version>
               <extensions>true</extensions>
               <configuration>
                   <publishingServerId>central</publishingServerId>
@@ -108,7 +108,7 @@
           <plugin>
               <groupId>org.apache.maven.plugins</groupId>
               <artifactId>maven-gpg-plugin</artifactId>
-              <version>3.2.4</version>
+              <version>3.2.8</version>
               <executions>
                   <execution>
                       <id>sign-artifacts</id>
@@ -128,7 +128,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-surefire-plugin</artifactId>
-            <version>3.2.5</version>
+            <version>3.5.6</version>
             <configuration>
               <!-- Preserve JaCoCo or other contributors to argLine and enable dynamic attach suppression for JDK 21+ -->
               <argLine>${argLine} -XX:+EnableDynamicAgentLoading</argLine>
@@ -138,7 +138,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-failsafe-plugin</artifactId>
-            <version>3.2.5</version>
+            <version>3.5.6</version>
             <configuration>
               <argLine>${argLine} -XX:+EnableDynamicAgentLoading</argLine>
               <useModulePath>false</useModulePath>
@@ -171,7 +171,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-source-plugin</artifactId>
-            <version>3.3.0</version>
+            <version>3.4.0</version>
             <executions>
               <execution>
                 <id>attach-sources</id>
@@ -184,7 +184,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.6.3</version>
+            <version>3.12.0</version>
             <executions>
               <execution>
                 <id>attach-javadocs</id>
@@ -225,7 +225,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-source-plugin</artifactId>
-            <version>3.3.0</version>
+            <version>3.4.0</version>
             <executions>
               <execution>
                 <id>attach-sources</id>
@@ -238,7 +238,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.6.3</version>
+            <version>3.12.0</version>
             <executions>
               <execution>
                 <id>attach-javadocs</id>
@@ -279,7 +279,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-source-plugin</artifactId>
-            <version>3.3.0</version>
+            <version>3.4.0</version>
             <executions>
               <execution>
                 <id>attach-sources</id>
@@ -292,7 +292,7 @@
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.6.3</version>
+            <version>3.12.0</version>
             <executions>
               <execution>
                 <id>attach-javadocs</id>
