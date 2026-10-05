@@ -64,6 +64,35 @@ public final class SSEClient: Sendable {
     }
 }
 
+extension SSEClient {
+    /// Whether a failed connection should be retried.
+    ///
+    /// Network failures, timeouts and 408 / 429 / 5xx responses are transient and retried.
+    /// Other HTTP statuses, invalid responses, cancellation, malformed URLs and TLS trust failures
+    /// are permanent and end the stream.
+    static func isRetryable(_ error: Error) -> Bool {
+        switch error {
+        case SSEClientError.unexpectedStatusCode(let status):
+            return status == 408 || status == 429 || (500..<600).contains(status)
+        case is SSEClientError:
+            return false
+        case let urlError as URLError:
+            switch urlError.code {
+            case .cancelled, .badURL, .unsupportedURL, .userAuthenticationRequired,
+                 .appTransportSecurityRequiresSecureConnection,
+                 .serverCertificateUntrusted, .serverCertificateHasBadDate,
+                 .serverCertificateNotYetValid, .serverCertificateHasUnknownRoot,
+                 .clientCertificateRejected, .clientCertificateRequired:
+                return false
+            default:
+                return true
+            }
+        default:
+            return true
+        }
+    }
+}
+
 /// Runs one ``SSEClient/events()`` stream: connects, parses, and reconnects with backoff until the
 /// stream is cancelled, the server answers 204, a non-retryable error occurs, or retries run out.
 ///
@@ -125,7 +154,7 @@ final class SSEClientTask: @unchecked Sendable {
             case .completed:
                 attempt = 0
             case .failed(let error):
-                guard SpectrayanSSEClient.isRetryable(error) else {
+                guard SSEClient.isRetryable(error) else {
                     continuation.finish(throwing: error)
                     return
                 }
