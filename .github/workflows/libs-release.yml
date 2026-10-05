@@ -25,7 +25,7 @@ jobs:
     name: Angular ng-sse-client • build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Node
         uses: spectrayan/github-workflows/.github/actions/node-setup@v1
         with:
@@ -54,9 +54,9 @@ jobs:
     name: Python spectrayan-sse-client • build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install dependencies
@@ -76,9 +76,9 @@ jobs:
       run:
         working-directory: clients/go
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: '1.22'
           cache-dependency-path: clients/go/go.mod
@@ -95,7 +95,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -122,7 +122,7 @@ jobs:
     env:
       MAVEN_GPG_PASSPHRASE: ${{ secrets.MAVEN_GPG_PASSPHRASE }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -156,7 +156,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Node for GitHub Packages
         uses: spectrayan/github-workflows/.github/actions/node-setup@v1
         with:
@@ -191,7 +191,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
