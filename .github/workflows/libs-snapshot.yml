@@ -20,7 +20,7 @@ jobs:
     name: Java SSE libraries • build & test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'workflow_dispatch'
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - name: Setup Java
         uses: spectrayan/github-workflows/.github/actions/java-setup@v1
         with:
