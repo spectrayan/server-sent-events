@@ -57,6 +57,15 @@ build-all: build-ng verify-mvn
 
 test-all: test-ng verify-mvn
 
+test-swift:
+	cd clients/swift && swift test
+
+test-go:
+	cd clients/go && go test -v ./...
+
+test-kotlin:
+	cd clients/kotlin && ./gradlew test
+
 lint:
 	$(NX) run-many -t lint || true
 
