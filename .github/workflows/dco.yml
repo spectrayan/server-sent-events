@@ -1,0 +1,58 @@
+name: DCO Check
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  dco:
+    name: DCO 1.1 Sign-Off Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Verify DCO Sign-off on commits
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          echo "Checking commits in range: $BASE_SHA..$HEAD_SHA"
+
+          COMMITS=$(git rev-list "$BASE_SHA..$HEAD_SHA")
+          if [ -z "$COMMITS" ]; then
+            echo "No commits found in range to inspect."
+            exit 0
+          fi
+
+          FAILED=0
+          for commit in $COMMITS; do
+            SUBJECT=$(git log -1 --format='%s' "$commit")
+            BODY=$(git log -1 --format='%B' "$commit")
+            
+            if echo "$BODY" | grep -qE "^Signed-off-by: .+ <.+@.+>"; then
+              echo "✅ $commit ($SUBJECT) — Signed off"
+            else
+              echo "❌ $commit ($SUBJECT) — Missing 'Signed-off-by:' trailer"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -ne 0 ]; then
+            echo ""
+            echo "::error::One or more commits are missing Developer Certificate of Origin (DCO 1.1) sign-off."
+            echo "To comply with GOVERNANCE.md, all commits must be signed off with 'git commit -s'."
+            echo ""
+            echo "How to fix unsigned commits on your branch:"
+            echo "  git rebase --signoff origin/main"
+            echo "  git push --force-with-lease"
+            exit 1
+          fi
+
+          echo ""
+          echo "All commits satisfy Developer Certificate of Origin (DCO 1.1) requirements. ✅"
