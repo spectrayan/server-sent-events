@@ -42,7 +42,7 @@ If you witness or experience unacceptable behavior, contact: `support@spectrayan
 ## Governance & Meritocracy
 
 This repository is governed as an open-source meritocracy under [GOVERNANCE.md](GOVERNANCE.md). 
-- We do not use corporate management titles in public repository communications. Roles are meritocratic: *Project Lead*, *Technical Lead*, *Architecture Working Group*, *Maintainers*, *Committers*, and *Contributors*.
+- Project participants act in their individual capacity under defined open-source roles: *Project Lead*, *Technical Lead*, *Architecture Working Group*, *Maintainers*, *Committers*, and *Contributors*.
 - Routine contributions operate under **Lazy Consensus** (72 hours without objection + 1 Maintainer approval).
 - Active contributors who reach **3+ merged pull requests** are eligible for nomination to Tier 2 Committer / Reviewer status. See the Contributor Ladder in [GOVERNANCE.md](GOVERNANCE.md) §3.
 
@@ -50,7 +50,7 @@ This repository is governed as an open-source meritocracy under [GOVERNANCE.md](
 
 ## Developer Certificate of Origin (DCO 1.1)
 
-To ensure legal integrity under the Apache License 2.0 without requiring corporate CLA paperwork, all contributions require a **Developer Certificate of Origin (DCO 1.1)** sign-off trailer on every commit:
+To ensure legal integrity under the Apache License 2.0 while keeping contributions streamlined, all contributions require a **Developer Certificate of Origin (DCO 1.1)** sign-off trailer on every commit:
 
 ```bash
 git commit -s -m "feat(scope): concise description"
