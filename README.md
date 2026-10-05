@@ -5,6 +5,8 @@
 **A production-ready Server-Sent Events toolkit for Spring Boot & Angular**
 
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![DCO 1.1](https://img.shields.io/badge/DCO-1.1%20Signed--off-brightgreen.svg)](DCO.md)
+[![Governance](https://img.shields.io/badge/Governance-Open%20Source%20Meritocracy-purple.svg)](GOVERNANCE.md)
 [![Java](https://img.shields.io/badge/Java-21+-ED8B00?logo=openjdk&logoColor=white)](https://openjdk.org)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-4.0-6DB33F?logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Angular](https://img.shields.io/badge/Angular-17+-DD0031?logo=angular&logoColor=white)](https://angular.dev)
@@ -27,6 +29,10 @@ Zero boilerplate. Production-grade. Horizontally scalable.
 | [`sse-server-bridge-redis`](libs/sse-server-bridge-redis/) | Multi-pod event fan-out via Redis Pub/Sub — just add the dependency, zero config | Java / Spring Data Redis |
 | [`sse-server-bridge-cloud-stream`](libs/sse-server-bridge-cloud-stream/) | Multi-pod event fan-out via Kafka, RabbitMQ, Google Pub/Sub, or any Spring Cloud Stream binder | Java / Spring Cloud |
 | [`ng-sse-client`](libs/ng-sse-client/) | Typed, zone-aware SSE client with auto-reconnect, backoff & jitter | TypeScript / Angular |
+| [`clients/swift`](clients/swift/) | Idiomatic Swift 6 client with `AsyncSequence` streaming for iOS, macOS, watchOS, tvOS, visionOS | Swift 6 |
+| [`clients/kotlin`](clients/kotlin/) | Coroutine-first Android & JVM client emitting real-time events via `Flow<ServerSentEvent>` | Kotlin |
+| [`clients/go`](clients/go/) | Idiomatic Go SSE client with thread-safe exponential backoff and channel streaming | Go |
+| [`clients/python`](clients/python/spectrayan-sse-client/) | Asyncio-native Python SSE client with context manager and streaming iterators | Python |
 | [`sse-sample-server-app`](samples/sse-sample-server-app/) | Runnable Spring Boot sample emitting periodic events | Java |
 | [`ng-sse-client-app`](samples/ng-sse-client-app/) | Angular sample app consuming an SSE stream | TypeScript |
 
@@ -335,12 +341,15 @@ npm run build ng-sse-client
 
 ---
 
-## 🤝 Contributing
+## 🤝 Contributing & Governance
 
-We welcome contributions! Please read:
-- [`CONTRIBUTING.md`](CONTRIBUTING.md) — how to contribute
-- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — community guidelines
-- [`SECURITY.md`](SECURITY.md) — reporting security vulnerabilities
+We welcome contributions! The project is governed as an open-source meritocracy:
+- [`GOVERNANCE.md`](GOVERNANCE.md) — Open-source governance model, roles, and 4-tier contributor ladder
+- [`DCO.md`](DCO.md) — Developer Certificate of Origin (DCO 1.1) sign-off requirements
+- [`CONTRIBUTING.md`](CONTRIBUTING.md) — Development setup, workflow, and testing guide
+- [`ACKNOWLEDGMENTS.md`](ACKNOWLEDGMENTS.md) — Open-source contributors and foundational research
+- [`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md) — Community behavioral guidelines
+- [`SECURITY.md`](SECURITY.md) — Reporting security vulnerabilities
 
 ## 📄 License
 
